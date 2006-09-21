@@ -7,6 +7,8 @@
 #include "filename.h"
 #include "cvaddon_animate.h"
 
+//#include "cvaddon_display.h"
+
 class CvAddonAnimationPainter
 {
 	
@@ -71,9 +73,20 @@ CvAddonAnimationPainter :: CvAddonAnimationPainter(const char *filename, const i
 //		whShowImageOnce(img);
 //
 		cerr << file.str() << endl;
-
 		mask = cvLoadImage(file.str().c_str(), 0);
 		
+		// This will hopefully prevent black borders 
+		// appearing because of the image resizing
+		cvErode(mask, mask);
+
+// DEBUG
+//		IplImage *tmp = cvCloneImage(img);
+//		cvSet(tmp, cvScalarAll(255));
+//
+//		cvCopy(img, tmp, mask);
+//
+//		cvAddonShowImageOnce(tmp);
+
 		images[i] = img;
 		masks[i] = mask;
 
