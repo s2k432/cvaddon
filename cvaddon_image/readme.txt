@@ -1,0 +1,1 @@
+Code in this folder should deal with image processing. Miscellaneous functions should be in ../cvaddon_util
