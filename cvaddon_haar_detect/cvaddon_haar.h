@@ -24,6 +24,7 @@
 
 
 #include <cv.h>
+
 #include "cvaddon_print.h"
 
 // Maximum number of objects returned
