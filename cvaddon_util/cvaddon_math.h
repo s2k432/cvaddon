@@ -7,9 +7,9 @@
 ////////////////////////////////////////////////////////////
 // By Wai Ho Li
 ////////////////////////////////////////////////////////////
-// Math functions 
-// The functions here make use of OpenCV's matrix 
-// and angle math functions
+// Math functions including:
+// - Matrix operations
+// - CvRect resize
 ////////////////////////////////////////////////////////////
 // TODO
 // ---
@@ -24,6 +24,15 @@ using std::cerr;
 #define CV_MAT_VAL(mat, type, row, col) \
 	( ((type*)( (mat)->data.ptr + (mat)->step* (row) ))[ (col) ] )
 
+
+// Resizes CvRect based on two ratios
+inline void cvAddonResizeRect(CvRect &rect, const float& widthRatio, const float &heightRatio)
+{
+	rect.x += (1.0f - widthRatio)/2 * rect.width;
+	rect.width *= widthRatio;
+	rect.y += (1.0f - heightRatio)/2 * rect.height;
+	rect.height *= heightRatio;
+}
 
 // Finds local extrema in 3x3 array of values relative
 // to center element's location
