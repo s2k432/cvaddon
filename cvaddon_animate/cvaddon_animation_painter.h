@@ -1,13 +1,45 @@
 #ifndef _CVADDON_ANIMATION_PAINTER_H
 #define _CVADDON_ANIMATION_PAINTER_H
 
+////////////////////////////////////////////////////////////
+//       CvAddon Animation Functions and Classes
+////////////////////////////////////////////////////////////
+// By Wai Ho Li
+////////////////////////////////////////////////////////////
+// Draws animation to an IplImage image
+////////////////////////////////////////////////////////////
+// Usage:
+// ---
+// Create painter instances using the constructor. Pass
+// the constructor the path to the series of images used 
+// as the animation. The images should have the follow attributes:
+// 1) Named <basename><number>.<extension>, such as 
+//    cat00.png or dog_1001.jpg. The numbering should be fixed 
+//    width and increasing from the first animation frame to 
+//    the last.
+// 2) Black pixels ( {0,0,0} ) at transparent locations (not 
+//    painted by the animation painter
+// 3) Images should be readable by OpenCV using the cvLoadImage()
+//    function
+// 
+// During construction, the class will attempt to read 
+// <numImages> in series, from disk. For example, with 
+// "cat00.png" as the <filename> and <numImages> = 5, 
+// cat00.png, cat01.png, cat02.png, cat03.png, cat04.png, cat05.png
+// will be read from disk. 
+//
+// To draw the animation, simply use the paint() member 
+// function. The location of the images are specified by 
+// <rect> and the image being drawn from the series is controlled
+// by index. Note that the index is relative to the first 
+// image read, and may not be the same as the number in the image 
+// name.
+////////////////////////////////////////////////////////////
+
 #include <cv.h>
 
-// Draws animation to an image
 #include "filename.h"
 #include "cvaddon_animate.h"
-
-//#include "cvaddon_display.h"
 
 class CvAddonAnimationPainter
 {
@@ -18,7 +50,7 @@ public:
 	bool paint(IplImage *img, const CvRect &rect, const int& index);
 
 	whFilename file;	// Filename
-	int numOfImages;			// Number of images
+	int numOfImages;	// Number of images
 
 private:
 	CvAddonImageBuf *imgBuf;
@@ -28,34 +60,6 @@ private:
 
 	IplImage *img;
 	IplImage *mask;
-
-//	imgBuf = cvAddonCreateImageBuf(10);
-//
-//	img = cvLoadImage("C:/Alan/research/mycode/SIFT/test1.png", 1);
-//	mask = cvLoadImage("C:/Alan/research/mycode/SIFT/test1.png", 0);
-//	cvAddonAddFrame(imgBuf, img, mask);
-//	img = cvLoadImage("C:/Alan/research/mycode/SIFT/test2.png", 1);
-//	mask = cvLoadImage("C:/Alan/research/mycode/SIFT/test2.png", 0);
-//	cvAddonAddFrame(imgBuf, img, mask);
-//	img = cvLoadImage("C:/Alan/research/mycode/SIFT/test3.png", 1);
-//	mask = cvLoadImage("C:/Alan/research/mycode/SIFT/test3.png", 0);
-//	cvAddonAddFrame(imgBuf, img, mask);
-//	
-//	img = cvLoadImage("C:/Alan/research/rawdata/panvids/with_odom/capture1_frame1.png", 1);
-//	img2 = cvCreateImage(cvGetSize(img), IPL_DEPTH_8U, 3);
-//
-//	int ret, i;
-//	CvAddonAnimFrameInfo info;
-//	for (i = 0; i < 100; ++i) {
-//		cvCopy(img, img2);
-//		info.dstRect = cvRect(10,10,300,300);
-//		info.frameIndex = i%3;
-//		ret = cvAddonPaintFrame(img2, imgBuf, info);
-//		cvShowImage("window1", img2);
-//		CV_PAUSE;
-//	}
-
-
 };
 
 CvAddonAnimationPainter :: CvAddonAnimationPainter(const char *filename, const int &numImages)
@@ -70,22 +74,8 @@ CvAddonAnimationPainter :: CvAddonAnimationPainter(const char *filename, const i
 	int i = 0;
 	while( img = cvLoadImage(file.str().c_str(), 1) )
 	{
-//		whShowImageOnce(img);
-//
 		cerr << file.str() << endl;
 		mask = cvLoadImage(file.str().c_str(), 0);
-		
-		// This will hopefully prevent black borders 
-		// appearing because of the image resizing
-		cvErode(mask, mask);
-
-// DEBUG
-//		IplImage *tmp = cvCloneImage(img);
-//		cvSet(tmp, cvScalarAll(255));
-//
-//		cvCopy(img, tmp, mask);
-//
-//		cvAddonShowImageOnce(tmp);
 
 		images[i] = img;
 		masks[i] = mask;
@@ -94,11 +84,10 @@ CvAddonAnimationPainter :: CvAddonAnimationPainter(const char *filename, const i
 
 		++i;
 		file.number++;
-
-//		whShowImageOnce(img);
 	}
 	numOfImages = i;
 }
+
 
 CvAddonAnimationPainter :: ~CvAddonAnimationPainter()
 {
@@ -107,21 +96,17 @@ CvAddonAnimationPainter :: ~CvAddonAnimationPainter()
 		cvReleaseImage(&(images[i]) );
 		cvReleaseImage(&(masks[i]) );
 	}
-//	delete [] images;
-//	delete [] masks;
 }
 
 bool CvAddonAnimationPainter :: paint(IplImage *dst, const CvRect &rect, const int& index)
 {
 	if(index < 0) return false;
 
-//	memset(&info, 0, sizeof(info));
 	info.dstRect = rect;	
 	info.frameIndex = index % numOfImages;
 	cvAddonPaintFrame(dst, imgBuf, info);
 
 	if(index >= numOfImages) return false;
-	
 	return true;
 }
 

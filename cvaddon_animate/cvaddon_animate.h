@@ -1,6 +1,23 @@
 #ifndef CVADDONANIMATE_H
 #define CVADDONANIMATE_H
 
+////////////////////////////////////////////////////////////
+//       CvAddon Animation Functions and Classes
+////////////////////////////////////////////////////////////
+// Original Code By Alan Zhang
+// Maintained by Wai Ho Li
+////////////////////////////////////////////////////////////
+// This code is designed to paint animation onto IplImages
+// The code can mask and scale the animation, which is 
+// represented by a series of IplImages. 
+////////////////////////////////////////////////////////////
+// Usage:
+// ---
+// See cvaddon_animation_painter.h for a class that 
+// can load images and disk and paint animation onto 
+// IplImages
+////////////////////////////////////////////////////////////
+
 #include <cv.h>
 #include <cxcore.h>
 
