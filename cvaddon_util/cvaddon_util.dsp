@@ -1,24 +1,24 @@
-# Microsoft Developer Studio Project File - Name="cvaddon_colour" - Package Owner=<4>
+# Microsoft Developer Studio Project File - Name="cvaddon_util" - Package Owner=<4>
 # Microsoft Developer Studio Generated Build File, Format Version 6.00
 # ** DO NOT EDIT **
 
 # TARGTYPE "Win32 (x86) Console Application" 0x0103
 
-CFG=cvaddon_colour - Win32 Debug
+CFG=cvaddon_util - Win32 Debug
 !MESSAGE This is not a valid makefile. To build this project using NMAKE,
 !MESSAGE use the Export Makefile command and run
 !MESSAGE 
-!MESSAGE NMAKE /f "cvaddon_colour.mak".
+!MESSAGE NMAKE /f "cvaddon_util.mak".
 !MESSAGE 
 !MESSAGE You can specify a configuration when running NMAKE
 !MESSAGE by defining the macro CFG on the command line. For example:
 !MESSAGE 
-!MESSAGE NMAKE /f "cvaddon_colour.mak" CFG="cvaddon_colour - Win32 Debug"
+!MESSAGE NMAKE /f "cvaddon_util.mak" CFG="cvaddon_util - Win32 Debug"
 !MESSAGE 
 !MESSAGE Possible choices for configuration are:
 !MESSAGE 
-!MESSAGE "cvaddon_colour - Win32 Release" (based on "Win32 (x86) Console Application")
-!MESSAGE "cvaddon_colour - Win32 Debug" (based on "Win32 (x86) Console Application")
+!MESSAGE "cvaddon_util - Win32 Release" (based on "Win32 (x86) Console Application")
+!MESSAGE "cvaddon_util - Win32 Debug" (based on "Win32 (x86) Console Application")
 !MESSAGE 
 
 # Begin Project
@@ -28,7 +28,7 @@ CFG=cvaddon_colour - Win32 Debug
 CPP=xicl6.exe
 RSC=rc.exe
 
-!IF  "$(CFG)" == "cvaddon_colour - Win32 Release"
+!IF  "$(CFG)" == "cvaddon_util - Win32 Release"
 
 # PROP BASE Use_MFC 0
 # PROP BASE Use_Debug_Libraries 0
@@ -39,10 +39,9 @@ RSC=rc.exe
 # PROP Use_Debug_Libraries 0
 # PROP Output_Dir "Release"
 # PROP Intermediate_Dir "Release"
-# PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" /YX /FD /c
-# ADD CPP /nologo /W3 /GX /Ob2 /I "../cvaddon_util" /I "../cvaddon_data_struct" /I "../util" /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" /YX /FD /Qvec-report2 /O3 /QaxB /Qparallel /c
+# ADD CPP /nologo /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" /YX /FD /c
 # ADD BASE RSC /l 0xc09 /d "NDEBUG"
 # ADD RSC /l 0xc09 /d "NDEBUG"
 BSC32=bscmake.exe
@@ -50,9 +49,9 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=xilink6.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /machine:I386
-# ADD LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib cv.lib cxcore.lib highgui.lib /nologo /subsystem:console /machine:I386
+# ADD LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /machine:I386
 
-!ELSEIF  "$(CFG)" == "cvaddon_colour - Win32 Debug"
+!ELSEIF  "$(CFG)" == "cvaddon_util - Win32 Debug"
 
 # PROP BASE Use_MFC 0
 # PROP BASE Use_Debug_Libraries 1
@@ -63,10 +62,9 @@ LINK32=xilink6.exe
 # PROP Use_Debug_Libraries 1
 # PROP Output_Dir "Debug"
 # PROP Intermediate_Dir "Debug"
-# PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_CONSOLE" /D "_MBCS" /YX /FD /GZ /c
-# ADD CPP /nologo /W3 /Gm /GX /ZI /Od /I "../cvaddon_util" /I "../cvaddon_data_struct" /I "../util" /D "WIN32" /D "_DEBUG" /D "_CONSOLE" /D "_MBCS" /FR /YX /FD /GZ /c
+# ADD CPP /nologo /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_CONSOLE" /D "_MBCS" /YX /FD /GZ /c
 # ADD BASE RSC /l 0xc09 /d "_DEBUG"
 # ADD RSC /l 0xc09 /d "_DEBUG"
 BSC32=bscmake.exe
@@ -74,61 +72,45 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=xilink6.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /debug /machine:I386 /pdbtype:sept
-# ADD LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib cv.lib cxcore.lib highgui.lib /nologo /subsystem:console /debug /machine:I386 /pdbtype:sept
+# ADD LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:console /debug /machine:I386 /pdbtype:sept
 
 !ENDIF 
 
 # Begin Target
 
-# Name "cvaddon_colour - Win32 Release"
-# Name "cvaddon_colour - Win32 Debug"
+# Name "cvaddon_util - Win32 Release"
+# Name "cvaddon_util - Win32 Debug"
 # Begin Group "Source Files"
 
 # PROP Default_Filter "cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
-# Begin Source File
-
-SOURCE=.\cvaddon_fast_bgr2hsv.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\cvaddon_filter2d.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\cvaddon_hsv_filter.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\main.cpp
-# End Source File
 # End Group
 # Begin Group "Header Files"
 
 # PROP Default_Filter "h;hpp;hxx;hm;inl"
 # Begin Source File
 
-SOURCE=.\cvaddon_fast_bgr2hsv.h
+SOURCE=.\cvaddon_convert_data.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\cvaddon_filter2d.h
+SOURCE=.\cvaddon_display.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\cvaddon_hsv_filter.h
+SOURCE=.\cvaddon_draw.h
 # End Source File
 # Begin Source File
 
-SOURCE=..\util\mem_util.h
+SOURCE=.\cvaddon_math.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\cvaddon_print.h
 # End Source File
 # End Group
 # Begin Group "Resource Files"
 
 # PROP Default_Filter "ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe"
 # End Group
-# Begin Source File
-
-SOURCE=.\readme.txt
-# End Source File
 # End Target
 # End Project

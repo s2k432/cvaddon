@@ -1,3 +1,5 @@
+/*
+
 // Uncomment to use LUT (~16MB in size) for BGR to HSV colour conversions
 // This is ~4 times faster on a Pentium M 1.73GHz laptop
 // Requires cvaddon_fast_bgr2hsv.h
@@ -228,3 +230,5 @@ IplImage* CvAddonHSVFilter::draw(void)
 //	cvReleaseFileStorage( &fs );		
 //	return true;
 //}
+
+*/
