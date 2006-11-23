@@ -116,12 +116,13 @@ void cvAddonBGR2HSV_LUT(const IplImage *src, IplImage *hue, IplImage *sat, IplIm
 		hueRow = (uchar*)(hue->imageData + hue->widthStep*i);
 		satRow = (uchar*)(sat->imageData + sat->widthStep*i);
 		valRow = (uchar*)(val->imageData + val->widthStep*i);
+
 		for(j = 0; j < srcSize.width; ++j) {
 			b = srcRow[j*3];
 			g = srcRow[j*3 + 1];
 			r = srcRow[j*3 + 2];
 
-			idx = b*B_MULT + g*G_MULT + r;
+			idx = b*B_MULT + g*G_MULT + r;		
 
 			hueRow[j] = hsvLut[idx].h;
 			satRow[j] = hsvLut[idx].s;

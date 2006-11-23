@@ -20,9 +20,14 @@
 #define CV_HSV( h, s, v )  cvScalar( (h), (s), (v) )
 
 #include <cv.h>
-#include <iostream>
-using std::cerr;
-using std::endl;
+
+#ifdef _DEBUG
+	#include <iostream>
+	using std::cerr;
+	using std::endl;
+
+	#include "cvaddon_display.h"
+#endif
 
 // HSV colour filtering
 class CvAddonHSVFilter

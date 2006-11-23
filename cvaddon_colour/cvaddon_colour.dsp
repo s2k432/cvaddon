@@ -42,7 +42,7 @@ RSC=rc.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" /YX /FD /c
-# ADD CPP /nologo /W3 /GX /Ob2 /I "../cvaddon_util" /I "../cvaddon_data_struct" /I "../util" /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" /YX /FD /Qvec-report2 /O3 /QaxB /Qparallel /c
+# ADD CPP /nologo /W3 /GX /Ob1 /I "../cvaddon_util" /I "../cvaddon_data_struct" /I "../util" /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" /FR /YX /FD /Qvec-report2 /O3 /QaxB /Qparallel /c
 # ADD BASE RSC /l 0xc09 /d "NDEBUG"
 # ADD RSC /l 0xc09 /d "NDEBUG"
 BSC32=bscmake.exe
@@ -88,10 +88,6 @@ LINK32=xilink6.exe
 # Begin Source File
 
 SOURCE=.\cvaddon_fast_bgr2hsv.cpp
-# End Source File
-# Begin Source File
-
-SOURCE=.\cvaddon_filter2d.cpp
 # End Source File
 # Begin Source File
 

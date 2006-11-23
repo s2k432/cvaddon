@@ -1,3 +1,7 @@
+#define MY_HSV
+
+#ifdef MY_HSV
+
 #include "cv.h"
 #include "highgui.h"
 
@@ -22,10 +26,9 @@
 	#pragma comment(lib, "ippcc")
 #endif
 
-
 int main()
 {
-	IplImage *in = cvLoadImage("filter2d_test1.bmp");
+	IplImage *in = cvLoadImage("filter2d_test3.bmp");
 	CvSize imgSize = cvGetSize(in);
 
 	cvAddonShowImageOnce(in);
@@ -36,6 +39,10 @@ int main()
 	IplImage *f_val = cvCreateImage(imgSize, IPL_DEPTH_8U, 1);
 
 	// TESTING: Generic 2D filter
+	int i;
+	const int TRIALS_O_O = 250;
+	FastTimer t0;
+
 	cvAddonInitHsvLut();
 	cvAddonBGR2HSV_LUT(in, f_hue, f_sat, f_val);
 
@@ -43,11 +50,31 @@ int main()
 	cvAddonShowImageOnce(f_sat);
 	cvAddonShowImageOnce(f_val);
 
-	CvAddonFilter2D<uchar> filt(4, 4, 179, 255);
+	CvAddonFilter2D<uchar> filt(45, 8, 179, 255);
 
-	filt.buildHist(f_hue, f_sat, 0, 179, 0, 255, true, false, f_val);
+	t0.getLoopTime();
+	for(i = 0; i < TRIALS_O_O; ++i)
+		filt.buildHist(f_hue, f_sat, 0, 179, 0, 255, true, false, f_val);
 
-	cerr << filt << endl;
+	cerr << "Hist Build: " << t0.getLoopTime() / (float)TRIALS_O_O << endl;
+//	cerr << filt << endl;
+
+	IplImage *bp = cvCloneImage(f_val);
+	cvZero(bp);
+
+	t0.getLoopTime();
+	for(i = 0; i < TRIALS_O_O; ++i)
+		filt.backProject(f_hue, f_sat, bp, 0, 179, 0, 255, f_val);
+
+	cerr << "Hist BP: " << t0.getLoopTime() / (float)TRIALS_O_O << endl;
+
+	cvAddonShowImageOnce(bp);
+
+//	cvAddonSaveFilter2D(&filt, "test.txt");
+//	CvAddonFilter2D<uchar> *filtOld = cvAddonLoadFilter2D<uchar>("test.txt");
+//	
+//	if(filtOld)
+//		cerr << *filtOld << endl;
 
 // Seems to work
 //	filt.blendHist(f_sat, f_hue, 0.5f, 0, 179, 0, 179, true, false, f_val);
@@ -184,3 +211,84 @@ int main()
 
 	return 0;
 }
+
+#else
+
+
+static const int TRIALS = 250;
+
+#include <cv.h>
+#include <highgui.h>
+
+#include "windows_fast_timer.h"
+
+#include <iostream>
+using std::cerr;
+using std::endl;
+
+int main( int argc, char** argv )
+{
+    IplImage* src;
+//    if( argc == 2 && (src=cvLoadImage(argv[1], 1))!= 0)
+//    {
+		src = cvLoadImage("filter2d_test3.bmp");
+
+        IplImage* h_plane = cvCreateImage( cvGetSize(src), 8, 1 );
+        IplImage* s_plane = cvCreateImage( cvGetSize(src), 8, 1 );
+        IplImage* v_plane = cvCreateImage( cvGetSize(src), 8, 1 );
+        IplImage* planes[] = { h_plane, s_plane };
+        IplImage* hsv = cvCreateImage( cvGetSize(src), 8, 3 );
+//        int h_bins = 30, s_bins = 32;
+        int h_bins = 45, s_bins = 8;
+        int hist_size[] = {h_bins, s_bins};
+        float h_ranges[] = { 0, 180 }; /* hue varies from 0 (~0°red) to 180 (~360°red again) */
+        float s_ranges[] = { 0, 255 }; /* saturation varies from 0 (black-gray-white) to 255 (pure spectrum color) */
+        float* ranges[] = { h_ranges, s_ranges };
+        int scale = 10;
+        IplImage* hist_img = cvCreateImage( cvSize(h_bins*scale,s_bins*scale), 8, 3 );
+        CvHistogram* hist;
+        float max_value = 0;
+        int h, s;
+
+        cvCvtColor( src, hsv, CV_BGR2HSV );
+        cvCvtPixToPlane( hsv, h_plane, s_plane, v_plane, 0 );
+        hist = cvCreateHist( 2, hist_size, CV_HIST_ARRAY, ranges, 1 );
+
+		int i;
+		FastTimer t0;
+
+		t0.getLoopTime();
+		for(i = 0; i < TRIALS; ++i)
+			cvCalcHist( planes, hist, 0, 0 );
+		
+		cerr << t0.getLoopTime() / (float)TRIALS << endl;
+
+		cvGetMinMaxHistValue( hist, 0, &max_value, 0, 0 );
+        cvZero( hist_img );
+
+        for( h = 0; h < h_bins; h++ )
+        {
+            for( s = 0; s < s_bins; s++ )
+            {
+                float bin_val = cvQueryHistValue_2D( hist, h, s );
+                int intensity = cvRound(bin_val*255/max_value);
+                cvRectangle( hist_img, cvPoint( h*scale, s*scale ),
+                             cvPoint( (h+1)*scale - 1, (s+1)*scale - 1),
+                             CV_RGB(intensity,intensity,intensity), /* graw a grayscale histogram.
+                                                                       if you have idea how to do it
+                                                                       nicer let us know */
+                             CV_FILLED );
+            }
+        }
+
+        cvNamedWindow( "Source", 1 );
+        cvShowImage( "Source", src );
+
+        cvNamedWindow( "H-S Histogram", 1 );
+        cvShowImage( "H-S Histogram", hist_img );
+
+        cvWaitKey(0);
+//    }
+}
+
+#endif

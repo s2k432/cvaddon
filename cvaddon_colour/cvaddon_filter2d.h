@@ -9,6 +9,8 @@
 // Used by colour filters such as HSV and rg (normalized RGB)
 // for histogram accumlation (building), blending and also
 // backprojecting histogram onto an OpenCV IplImage
+//
+// Assumes <i0> and <i1> ROI are at the same location (and size)
 ////////////////////////////////////////////////////////////
 
 #include <cxcore.h>
@@ -24,10 +26,14 @@
 	#include "cvaddon_display.h"
 #endif
 
+#include <fstream>
+using std::ofstream;
+using std::ifstream;
+
 static const float MAX_PIXEL_VAL = 255.0f;
 
-// ImgType is either uchar or float
-template <typename ImgType>
+// PixelType is should uchar, int, float or double
+template <typename PixelType>
 class CvAddonFilter2D
 {
 public:
@@ -35,14 +41,22 @@ public:
 	~CvAddonFilter2D();
 
 	void buildHist(const IplImage *i0, const IplImage *i1
-		, ImgType i0_th0, ImgType i0_th1, ImgType i1_th0, ImgType i1_th1
+		, const PixelType& i0_th0, const PixelType& i0_th1
+		, const PixelType& i1_th0, const PixelType& i1_th1
 		, const bool &wrapDim0 = false, const bool &wrapDim1 = false	// Whether to wrap dimensions
 		, const IplImage *mask = NULL);
 
 	void blendHist(const IplImage *i0, const IplImage *i1, const float &alpha
-		, ImgType i0_th0, ImgType i0_th1, ImgType i1_th0, ImgType i1_th1
+		, const PixelType& i0_th0, const PixelType& i0_th1
+		, const PixelType& i1_th0, const PixelType& i1_th1
 		, const bool &wrapDim0 = false, const bool &wrapDim1 = false	// Whether to wrap dimensions
 		, const IplImage *mask = NULL);
+
+	void backProject(const IplImage *i0, const IplImage *i1, IplImage *dst
+		, const PixelType& i0_th0, const PixelType& i0_th1
+		, const PixelType& i1_th0, const PixelType& i1_th1
+		, const IplImage *mask = NULL);
+
 
 	const int DIM0, DIM1;
 	const int I0_MAX, I1_MAX;
@@ -58,40 +72,55 @@ private:
 };
 
 
-
 // Support Functions
-//bool cvAddonSaveFilter2D(const CvAddonFilter2D *ptr, const char* name);
-//CvAddonFilter2D* cvAddonLoadFilter2D(const char* name);
+template <typename PixelType>
+void cvAddonSaveFilter2D(const CvAddonFilter2D<PixelType> *ptr, const char* name);
 
+template <typename PixelType>
+CvAddonFilter2D<PixelType>* cvAddonLoadFilter2D(const char* name);
+
+
+
+// ****************************************************************************
+// ****************************************************************************
+// ***                     CLASS IMPLEMENTATION BELOW                       ***
+// ****************************************************************************
+// ****************************************************************************
 
 // dim0 --> rows, dim1 --> cols
-template <typename ImgType>
-CvAddonFilter2D<ImgType>::CvAddonFilter2D(const int& dim0, const int& dim1, const int& i0Max, const int& i1Max)
+template <typename PixelType>
+CvAddonFilter2D<PixelType>::CvAddonFilter2D(const int& dim0, const int& dim1, const int& i0Max, const int& i1Max)
 	: DIM0(dim0), DIM1(dim1), I0_MAX(i0Max), I1_MAX(i1Max), SIZE0(DIM0 + 2), SIZE1(DIM1 + 2)
+	, lut(NULL)
 {
 	// Histogram padded by 1 bin on all four sides
 	allocate2DArrayBlock(hist, SIZE0, SIZE1);	
 	allocate2DArrayBlock(oldHist, SIZE0, SIZE1);
 
-	I0_C = (float)I0_MAX / (float)DIM0;
-	I1_C = (float)I1_MAX / (float)DIM1;
+//	I0_C = (float)I0_MAX / (float)DIM0;
+//	I1_C = (float)I1_MAX / (float)DIM1;
+	I0_C = (float)DIM0 / (float)I0_MAX;
+	I1_C = (float)DIM1 / (float)I1_MAX;
 }
 
-template <typename ImgType>
-CvAddonFilter2D<ImgType>::~CvAddonFilter2D()
+template <typename PixelType>
+CvAddonFilter2D<PixelType>::~CvAddonFilter2D()
 {
 	delete2DArrayBlock(hist);
 	delete2DArrayBlock(oldHist);
+
+	delete [] LUT;
 }
 
-template <typename ImgType>
-void CvAddonFilter2D<ImgType>::buildHist(const IplImage *i0, const IplImage *i1
-		, ImgType i0_th0, ImgType i0_th1, ImgType i1_th0, ImgType i1_th1
+template <typename PixelType>
+void CvAddonFilter2D<PixelType>::buildHist(const IplImage *i0, const IplImage *i1
+		, const PixelType& i0_th0, const PixelType& i0_th1
+		, const PixelType& i1_th0, const PixelType& i1_th1
 		, const bool &wrapDim0, const bool &wrapDim1
 		, const IplImage *mask)
 {
-	ImgType i0_min, i0_max, i1_min, i1_max;
-	ImgType *i0Row, *i1Row, *maskRow;
+	PixelType i0_min, i0_max, i1_min, i1_max;
+	PixelType *i0Row, *i1Row, *maskRow;
 	int i,j;
 	float r0_val, r1_val, c0_val, c1_val;
 	CvRect roi, roiTmp;
@@ -113,6 +142,8 @@ void CvAddonFilter2D<ImgType>::buildHist(const IplImage *i0, const IplImage *i1
 
 	roi = cvGetImageROI(i0);
 	roiTmp = cvGetImageROI(i1);
+	
+	//if( roi.width != roiTmp.width || roi.height != roiTmp.height)
 	if( memcmp(&roi, &roiTmp, sizeof(roi)) != 0)
 		CV_ERROR(CV_BadROISize, "Bad ROI: i0 and i1 ROI does not agree");
 
@@ -126,22 +157,24 @@ void CvAddonFilter2D<ImgType>::buildHist(const IplImage *i0, const IplImage *i1
 	i1_min = MIN(i1_th0, i1_th1);
 
 	roiSize = cvSize(roi.width, roi.height);
-	for(i = roi.y; i < roi.y + roi.height; ++i)
-	{
-		i0Row = (uchar*)(i0->imageData + i0->widthStep*i);
-		i1Row = (uchar*)(i1->imageData + i1->widthStep*i);
-		maskRow = (uchar*)(mask->imageData + mask->widthStep*i);
-		for(j = roi.x; j < roi.x + roi.width; ++j)
+	
+	if(mask == NULL) {
+		for(i = roi.y; i < roi.y + roi.height; ++i)
 		{
-			if(maskRow[j]) {
-				ImgType i0_val = i0Row[j];
-				ImgType i1_val = i1Row[j];
+			i0Row = (uchar*)(i0->imageData + i0->widthStep*i);
+			i1Row = (uchar*)(i1->imageData + i1->widthStep*i);
+			for(j = roi.x; j < roi.x + roi.width; ++j)
+			{
+				PixelType i0_val = i0Row[j];
+				PixelType i1_val = i1Row[j];
 				
-				if(	i0_val >= i0_min && i0_val <= i0_max && 
+				if(	i0_val >= i0_min && i0_val <= i0_max &&
 					i1_val >= i1_min && i1_val <= i1_max )
 				{
-					float r = (float)i0_val / I0_C + 0.5f;
-					float c = (float)i1_val / I1_C + 0.5f;
+//					float r = (float)i0_val / I0_C + 0.5f;
+//					float c = (float)i1_val / I1_C + 0.5f;
+					float r = (float)i0_val * I0_C + 0.5f;
+					float c = (float)i1_val * I1_C + 0.5f;
 
 					int r0 = (int)r;
 					int r1 = r0+1;
@@ -154,11 +187,89 @@ void CvAddonFilter2D<ImgType>::buildHist(const IplImage *i0, const IplImage *i1
 							
 					c0_val = (float)c1 - c;
 					c1_val = c - (float)c0;
-				
+
 					hist[r0][c0] += r0_val*c0_val;
 					hist[r0][c1] += r0_val*c1_val;
 					hist[r1][c0] += r1_val*c0_val;
 					hist[r1][c1] += r1_val*c1_val;
+				}
+			}
+		}
+
+
+        
+//    for( ; size.height--; img[0] += step, img[1] += step )
+//    {
+//        uchar* ptr0 = img[0];
+//        uchar* ptr1 = img[1];
+//        if( !mask )
+//        {
+//            for( x = 0; x < size.width; x++ )
+//            {
+//                int v0 = ptr0[x];
+//                int v1 = ptr1[x];
+//                int idx = tab[v0] + tab[256+v1];
+//
+//                if( idx >= 0 )
+//                    bins[idx]++;
+//            }
+//        }
+//        else
+//        {
+//            for( x = 0; x < size.width; x++ )
+//            {
+//                if( mask[x] )
+//                {
+//                    int v0 = ptr0[x];
+//                    int v1 = ptr1[x];
+//
+//                    int idx = tab[v0] + tab[256+v1];
+//
+//                    if( idx >= 0 )
+//                        bins[idx]++;
+//                }
+//            }
+//            mask += maskStep;
+//        }
+//    }
+	}
+	else {
+		for(i = roi.y; i < roi.y + roi.height; ++i)
+		{
+			i0Row = (uchar*)(i0->imageData + i0->widthStep*i);
+			i1Row = (uchar*)(i1->imageData + i1->widthStep*i);
+			maskRow = (uchar*)(mask->imageData + mask->widthStep*i);
+			for(j = roi.x; j < roi.x + roi.width; ++j)
+			{
+				if(maskRow[j]) {
+					PixelType i0_val = i0Row[j];
+					PixelType i1_val = i1Row[j];
+					
+					if(	i0_val >= i0_min && i0_val <= i0_max &&
+						i1_val >= i1_min && i1_val <= i1_max )
+					{
+	//					float r = (float)i0_val / I0_C + 0.5f;
+	//					float c = (float)i1_val / I1_C + 0.5f;
+						float r = (float)i0_val * I0_C + 0.5f;
+						float c = (float)i1_val * I1_C + 0.5f;
+
+						int r0 = (int)r;
+						int r1 = r0+1;
+
+						int c0 = (int)c;
+						int c1 = c0+1;
+
+						r0_val = (float)r1 - r;
+						r1_val = r - (float)r0;
+								
+						c0_val = (float)c1 - c;
+						c1_val = c - (float)c0;
+
+						hist[r0][c0] += r0_val*c0_val;
+						hist[r0][c1] += r0_val*c1_val;
+						hist[r1][c0] += r1_val*c0_val;
+						hist[r1][c1] += r1_val*c1_val;
+					}
 				}
 			}
 		}
@@ -203,11 +314,110 @@ void CvAddonFilter2D<ImgType>::buildHist(const IplImage *i0, const IplImage *i1
 	__END__;
 }
 
+template <typename PixelType>
+void CvAddonFilter2D<PixelType>::backProject(const IplImage *i0, const IplImage *i1, IplImage *dst
+	, const PixelType& i0_th0, const PixelType& i0_th1
+	, const PixelType& i1_th0, const PixelType& i1_th1
+	, const IplImage *mask)
+{
+	PixelType i0_min, i0_max, i1_min, i1_max;
+	PixelType *i0Row, *i1Row, *maskRow, *dstRow;
+	int i,j;
+	CvRect roi, roiTmp;
+	CvSize roiSize;
 
-template <typename ImgType>
-void CvAddonFilter2D<ImgType>::blendHist(const IplImage *i0, const IplImage *i1
+
+	CV_FUNCNAME( "Filter2D backProject()" );
+
+	__BEGIN__;
+
+	if(i0 == NULL || i1 == NULL)
+		CV_ERROR(CV_StsNullPtr, "Null Pointer Error: i0 or i1 is NULL");
+	if(dst == NULL)
+		CV_ERROR(CV_StsNullPtr, "Null Pointer Error: dst is NULL");
+	if(i0->nChannels != 1)
+		CV_ERROR(CV_BadNumChannels, "Wrong Channel Number: i0 should have 1 channel only");
+	if(i1->nChannels != 1)
+		CV_ERROR(CV_BadNumChannels, "Wrong Channel Number: i1 should have 1 channel only");
+	if(dst->nChannels != 1)
+		CV_ERROR(CV_BadNumChannels, "Wrong Channel Number: dst should have 1 channel only");
+
+	roi = cvGetImageROI(i0);
+	roiTmp = cvGetImageROI(i1);
+	//if( roi.width != roiTmp.width || roi.height != roiTmp.height)
+	if( memcmp(&roi, &roiTmp, sizeof(roi)) != 0)
+		CV_ERROR(CV_BadROISize, "Bad ROI: i0 and i1 ROI does not agree");
+	
+	cvSetImageROI(dst, roi);
+	if( memcmp(&roi, &roiTmp, sizeof(roi)) != 0)
+		CV_ERROR(CV_BadROISize, "Bad ROI: Could not set dst ROI (image too small?)");
+
+	// Getting thresholds
+	i0_max = MAX(i0_th0, i0_th1);
+	i0_min = MIN(i0_th0, i0_th1);
+	i1_max = MAX(i1_th0, i1_th1);
+	i1_min = MIN(i1_th0, i1_th1);
+
+	roiSize = cvSize(roi.width, roi.height);
+
+	if(mask == NULL) {
+		for(i = roi.y; i < roi.y + roi.height; ++i)
+		{
+			i0Row = (uchar*)(i0->imageData + i0->widthStep*i);
+			i1Row = (uchar*)(i1->imageData + i1->widthStep*i);
+			dstRow = (uchar*)(dst->imageData + dst->widthStep*i);
+			for(j = roi.x; j < roi.x + roi.width; ++j)
+			{
+				PixelType i0_val = i0Row[j];
+				PixelType i1_val = i1Row[j];
+				
+				if(	i0_val >= i0_min && i0_val <= i0_max && 
+					i1_val >= i1_min && i1_val <= i1_max )
+				{	
+					int r = (int)( (float)i0_val * I0_C ) + 1; //+ 0.5f );
+					int c = (int)( (float)i1_val * I1_C ) + 1; //+ 0.5f );
+
+					dstRow[j] = hist[r][c];
+				}
+			}
+		}	
+	}
+	else {
+		for(i = roi.y; i < roi.y + roi.height; ++i)
+		{
+			i0Row = (uchar*)(i0->imageData + i0->widthStep*i);
+			i1Row = (uchar*)(i1->imageData + i1->widthStep*i);
+			maskRow = (uchar*)(mask->imageData + mask->widthStep*i);
+			dstRow = (uchar*)(dst->imageData + dst->widthStep*i);
+			for(j = roi.x; j < roi.x + roi.width; ++j)
+			{
+				if(maskRow[j]) {
+					PixelType i0_val = i0Row[j];
+					PixelType i1_val = i1Row[j];
+					
+					if(	i0_val >= i0_min && i0_val <= i0_max && 
+						i1_val >= i1_min && i1_val <= i1_max )
+					{	
+	//					int r = (int)( (float)i0_val / I0_C ) + 1; //+ 0.5f );
+	//					int c = (int)( (float)i1_val / I1_C ) + 1; //+ 0.5f );
+						int r = (int)( (float)i0_val * I0_C ) + 1; //+ 0.5f );
+						int c = (int)( (float)i1_val * I1_C ) + 1; //+ 0.5f );
+
+						dstRow[j] = hist[r][c];
+					}
+				}
+			}
+		}	
+	}
+	__END__;
+}
+
+
+template <typename PixelType>
+void CvAddonFilter2D<PixelType>::blendHist(const IplImage *i0, const IplImage *i1
 		, const float &alpha
-		, ImgType i0_th0, ImgType i0_th1, ImgType i1_th0, ImgType i1_th1
+		, const PixelType& i0_th0, const PixelType& i0_th1
+		, const PixelType& i1_th0, const PixelType& i1_th1
 		, const bool &wrapDim0, const bool &wrapDim1
 		, const IplImage *mask)
 {
@@ -237,8 +447,10 @@ void CvAddonFilter2D<ImgType>::blendHist(const IplImage *i0, const IplImage *i1
 }
 
 
-template <typename ImgType>
-inline std::ostream& operator<< (std::ostream &o, const CvAddonFilter2D<ImgType> &filt)
+
+
+template <typename PixelType>
+inline std::ostream& operator<< (std::ostream &o, const CvAddonFilter2D<PixelType> &filt)
 {
 	int i,j;
 	for(i = 1; i <= filt.DIM0; ++i) {
@@ -250,8 +462,8 @@ inline std::ostream& operator<< (std::ostream &o, const CvAddonFilter2D<ImgType>
 	return o << endl;
 }
 
-template <typename ImgType>
-void CvAddonFilter2D<ImgType>::normHist(float **h, const float& total)
+template <typename PixelType>
+void CvAddonFilter2D<PixelType>::normHist(float **h, const float& total)
 {
 	int i,j;
 	float alpha;
@@ -271,6 +483,87 @@ void CvAddonFilter2D<ImgType>::normHist(float **h, const float& total)
 			}
 		}
 	}
+}
+
+template <typename PixelType>
+void cvAddonSaveFilter2D(const CvAddonFilter2D<PixelType> *ptr, const char* name)
+{
+	ofstream outFile;
+	int i,j;
+
+	CV_FUNCNAME( "cvAddonSaveFilter2D" );	
+
+	__BEGIN__;
+
+	if(ptr == NULL || name == NULL)
+		CV_ERROR(CV_StsNullPtr, "Null Pointer Error: ptr or name is NULL");
+
+	outFile.open(name);
+	if( !outFile.is_open() )
+		CV_ERROR(CV_StsNullPtr, "Couldn't open file for writing");
+
+	outFile << ptr->DIM0 << "\n";
+	outFile << ptr->DIM1 << "\n";
+	outFile << ptr->I0_MAX << "\n";
+	outFile << ptr->I1_MAX << "\n";
+
+	for(i = 1; i <= ptr->DIM0; ++i)
+	{
+		for(j = 1; j <= ptr->DIM1; ++j)
+		{
+			outFile << ptr->hist[i][j] << " ";
+		}
+		outFile << "\n";
+	}
+	outFile << endl;
+
+	outFile.close();
+
+	__END__;
+}
+
+
+
+template <typename PixelType>
+CvAddonFilter2D<PixelType>* cvAddonLoadFilter2D(const char* name)
+{
+	ifstream inFile;
+	int i,j;
+	CvAddonFilter2D<PixelType> *ptr;
+	int dim0, dim1, i0Max, i1Max;
+
+	CV_FUNCNAME( "cvAddonLoadFilter2D" );	
+
+	__BEGIN__;
+
+	if(name == NULL)
+		CV_ERROR(CV_StsNullPtr, "Null Pointer Error: name is NULL");
+
+	inFile.open(name);
+	if( !inFile.is_open() )
+		CV_ERROR(CV_StsNullPtr, "Couldn't open file for reading");
+
+	inFile >> dim0;
+	inFile >> dim1;
+	inFile >> i0Max;
+	inFile >> i1Max;
+
+	ptr = new CvAddonFilter2D<PixelType>(dim0, dim1, i0Max, i1Max);
+
+	for(i = 1; i <= ptr->DIM0; ++i)
+	{
+		for(j = 1; j <= ptr->DIM1; ++j)
+		{
+			inFile >> ptr->hist[i][j];
+		}
+	}
+	inFile.close();
+
+	return ptr;
+
+	__END__;
+
+	return NULL;
 }
 
 
