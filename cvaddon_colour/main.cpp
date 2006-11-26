@@ -28,7 +28,7 @@
 
 int main()
 {
-	IplImage *in = cvLoadImage("filter2d_test3.bmp");
+	IplImage *in = cvLoadImage("test0.bmp");
 	CvSize imgSize = cvGetSize(in);
 
 	cvAddonShowImageOnce(in);

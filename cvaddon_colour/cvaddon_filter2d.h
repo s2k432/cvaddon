@@ -91,7 +91,6 @@ CvAddonFilter2D<PixelType>* cvAddonLoadFilter2D(const char* name);
 template <typename PixelType>
 CvAddonFilter2D<PixelType>::CvAddonFilter2D(const int& dim0, const int& dim1, const int& i0Max, const int& i1Max)
 	: DIM0(dim0), DIM1(dim1), I0_MAX(i0Max), I1_MAX(i1Max), SIZE0(DIM0 + 2), SIZE1(DIM1 + 2)
-	, lut(NULL)
 {
 	// Histogram padded by 1 bin on all four sides
 	allocate2DArrayBlock(hist, SIZE0, SIZE1);	
@@ -108,8 +107,6 @@ CvAddonFilter2D<PixelType>::~CvAddonFilter2D()
 {
 	delete2DArrayBlock(hist);
 	delete2DArrayBlock(oldHist);
-
-	delete [] LUT;
 }
 
 template <typename PixelType>
