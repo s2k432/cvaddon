@@ -34,31 +34,32 @@ class CvAddonHSVFilter
 {
 public:
 	// Normal Constructor
-	CvAddonHSVFilter(const int& hBins, const int& sBins);
+	CvAddonHSVFilter(const int& hBins = 45, const int& sBins = 8);
 
-	// Use this constructor to load histogram data from 
-	// file (generated in a previous buildHist() call)
-	CvAddonHSVFilter(const char* filename);
+//	// Use this constructor to load histogram data from 
+//	// file (generated in a previous buildHist() call)
+//	CvAddonHSVFilter(const char* filename);
 
 	~CvAddonHSVFilter();
 
 	// ************ MAIN FUNCTIONS ************
-	bool buildHist(const IplImage *src, IplImage *H, IplImage *S
+	void buildHist(const IplImage *src, IplImage *H, IplImage *S, IplImage *V
 		, const CvScalar &thresh0, const CvScalar &thresh1
 		, const IplImage *mask = NULL);
 
-	bool blendHist(const IplImage *src, IplImage *H, IplImage *S
+	void blendHist(const IplImage *src, IplImage *H, IplImage *S, IplImage *V
 		, const CvScalar &thresh0, const CvScalar &thresh1
-		, const IplImage *mask = NULL);
+		, const IplImage *mask = NULL, const double& alpha = 0.5f);
 
-	bool backProject(const IplImage *src, IplImage *H, IplImage *S
+	void backProject(const IplImage *src, IplImage *H, IplImage *S, IplImage *V
+		, IplImage *dst
 		, const CvScalar &thresh0, const CvScalar &thresh1
 		, const IplImage *mask = NULL);
 
 
 	// ************ SUPPORT FUNCTIONS ************
-	// Writes histogram data to file (OpenCV's XML format)
-	bool save(const char* filename);
+//	// Writes histogram data to file (OpenCV's XML format)
+//	bool save(const char* filename);
 
 	// Paints an OpenCV image with histogram values
 	void drawHist(IplImage *dst);
@@ -68,14 +69,10 @@ public:
 	const int S_BINS;	// Number of saturation bins
 
 private:
-	void init(const int& h, const int& s);
-
-	// Internal function to build histograms
-	void hist(const IplImage *H, const IplImage *S, const IplImage *mask);
-
-
 	// ******* Internal Data *********
-	CvHistogram *hist, *newHist;
+	CvHistogram *hist, *oldHist;
+	int sizes[2];
+	IplImage *planes[2];
 };
 
 

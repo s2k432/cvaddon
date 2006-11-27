@@ -10,9 +10,11 @@
 // Math functions including:
 // - Matrix operations
 // - CvRect resize
+// - MAX, MIN etc
 ////////////////////////////////////////////////////////////
 // TODO
 // ---
+// DOC issues:
 // Check and reject bad hessians? (abs(shift) > 1 etc)
 ////////////////////////////////////////////////////////////
 
@@ -24,6 +26,24 @@ using std::cerr;
 #define CV_MAT_VAL(mat, type, row, col) \
 	( ((type*)( (mat)->data.ptr + (mat)->step* (row) ))[ (col) ] )
 
+
+// Orders two scalars such that their elements are placed into a 
+// lower and upper resulting scalar
+// eg. (1,2,3); (4,0,6) ==> lower:(1,0,3), upper:(4,2,6)
+inline void lowerUpper(const CvScalar& a, const CvScalar& b, CvScalar& lower, CvScalar& upper)
+{
+	int i;
+	for(i = 0; i < 4; ++i) {
+		if(a.val[i] > b.val[i]) {
+			lower.val[i] = b.val[i];
+			upper.val[i] = a.val[i];
+		}
+		else {
+			lower.val[i] = a.val[i];
+			upper.val[i] = b.val[i];
+		}
+	}
+}
 
 // Resizes CvRect based on two ratios
 inline void cvAddonResizeRect(CvRect &rect, const float& widthRatio, const float &heightRatio)
