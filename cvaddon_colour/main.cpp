@@ -12,6 +12,8 @@ using std::endl;
 
 #include "windows_fast_timer.h"
 
+#include "cvaddon_fast_bgr2hsv.h"
+
 #ifdef _DEBUG
 	static const int TRIALS = 1;	
 #else
@@ -41,36 +43,40 @@ int main()
 
 	t0.getLoopTime();
 	for(i = 0; i < TRIALS; ++i)
-		hsvFilter.buildHist(in, h, s, v, cvScalar(-1,-1,-1), cvScalar(256,256,256), NULL);
-
-	cerr << "buildHist: " << t0.getLoopTime() / (float)TRIALS << endl;
-
-	hsvFilter.drawHist(histImg);
-	cvAddonShowImageOnce(histImg);
-
-	exit(1);
-
-	t0.getLoopTime();
-	for(i = 0; i < TRIALS; ++i)
-		hsvFilter.backProject(in, h, s, v, bp, cvScalar(-1,-1,-1), cvScalar(256,256,256), NULL);
-	cerr << "bp: " << t0.getLoopTime() / (float)TRIALS << endl;
-
-	cvAddonShowImageOnce(bp);
-
-	const double alpha = 0.5;
+		cvAddonBGR2HSV_LUT(in, h, s, v);
+	cerr << "LUT HSV Convert: " << t0.getLoopTime() / (float)TRIALS << endl;
 	
-	t0.getLoopTime();
-	for(i = 0; i < TRIALS; ++i)
-		hsvFilter.blendHist(in, h, s, v, cvScalar(-1,-1,-1), cvScalar(256,256,256), NULL, alpha);
-	cerr << "blend: " << t0.getLoopTime() / (float)TRIALS << endl;
 
-	hsvFilter.drawHist(histImg);
-	cvAddonShowImageOnce(histImg);
+//	t0.getLoopTime();
+//	for(i = 0; i < TRIALS; ++i)
+//		hsvFilter.buildHist(in, h, s, v, cvScalar(-1,-1,20), cvScalar(256,256,256), NULL);
+//
+//	cerr << "buildHist: " << t0.getLoopTime() / (float)TRIALS << endl;
+//
+//	hsvFilter.drawHist(histImg);
+//	cvAddonShowImageOnce(histImg);
+//
+//	t0.getLoopTime();
+//	for(i = 0; i < TRIALS; ++i)
+//		hsvFilter.backProject(in, h, s, v, bp, cvScalar(-1,-1,-1), cvScalar(256,256,256), NULL);
+//	cerr << "bp: " << t0.getLoopTime() / (float)TRIALS << endl;
+//
+//	cvAddonShowImageOnce(bp);
 
-
-	hsvFilter.backProject(in, h, s, v, bp, cvScalar(-1,-1,-1), cvScalar(256,256,256), NULL);
-
-	cvAddonShowImageOnce(bp);
+//	const double alpha = 0.5;
+//	
+//	t0.getLoopTime();
+//	for(i = 0; i < TRIALS; ++i)
+//		hsvFilter.blendHist(in, h, s, v, cvScalar(-1,-1,-1), cvScalar(256,256,256), NULL, alpha);
+//	cerr << "blend: " << t0.getLoopTime() / (float)TRIALS << endl;
+//
+//	hsvFilter.drawHist(histImg);
+//	cvAddonShowImageOnce(histImg);
+//
+//
+//	hsvFilter.backProject(in, h, s, v, bp, cvScalar(-1,-1,-1), cvScalar(256,256,256), NULL);
+//
+//	cvAddonShowImageOnce(bp);
 
 //	cvEqualizeHist(bp, v);
 //

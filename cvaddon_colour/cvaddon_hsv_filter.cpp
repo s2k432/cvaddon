@@ -27,6 +27,7 @@ CvAddonHSVFilter::~CvAddonHSVFilter()
 	cvReleaseHist(&oldHist);
 }
 
+// TODO: ROI support needs checking and work
 void CvAddonHSVFilter::buildHist(const IplImage *src, IplImage *H, IplImage *S, IplImage *V
 		, const CvScalar &thresh0, const CvScalar &thresh1, const IplImage *mask)
 {
@@ -34,11 +35,12 @@ void CvAddonHSVFilter::buildHist(const IplImage *src, IplImage *H, IplImage *S, 
 	int minS;
 	CvMat mat;
 	CvScalar lower, upper;
+	
 	// DO ERROR CHECK
 	
 	cvAddonBGR2HSV_LUT(src, H, S, V);
 
-	cerr << "Sat:" << (int)CV_IMAGE_ELEM(S, uchar, 1, 1) << endl;
+//	cerr << "Sat:" << (int)CV_IMAGE_ELEM(S, uchar, 1, 1) << endl;
 
 	// Creating mask from V plane of HSV
 	lowerUpper(thresh0, thresh1, lower, upper);
@@ -50,6 +52,7 @@ void CvAddonHSVFilter::buildHist(const IplImage *src, IplImage *H, IplImage *S, 
 
 	planes[0] = H; 
 	planes[1] = S;
+	
 	cvCalcHist(planes, hist, 0, V);
 
 	// Clearing bins that are outside the S limits
@@ -58,7 +61,7 @@ void CvAddonHSVFilter::buildHist(const IplImage *src, IplImage *H, IplImage *S, 
 
 	minS = cvRound(lower.val[1] * (float)S_BINS / 255.0);
 
-	cerr << minS << endl;
+//	cerr << minS << endl;
 	for(i = 0; i < H_BINS; ++i)
 	{
 		for(j = 0; j < minS; ++j)
@@ -86,7 +89,7 @@ void CvAddonHSVFilter::blendHist(const IplImage *src, IplImage *H, IplImage *S, 
 	cvNormalizeHist(hist, 255.0);
 }
 
-
+// ROI not tested. But, it *should* all work, as the BGR2HSV function supports ROI
 void CvAddonHSVFilter::backProject(const IplImage *src, IplImage *H, IplImage *S, IplImage *V
 	, IplImage *dst
 	, const CvScalar &thresh0, const CvScalar &thresh1, const IplImage *mask)

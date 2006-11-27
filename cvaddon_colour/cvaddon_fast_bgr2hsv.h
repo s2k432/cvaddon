@@ -18,6 +18,7 @@
 // TODO
 // ---
 // - Fast read/write table to and from disk
+// - ROI support? (look at OpenCV and my filter2d code)
 ////////////////////////////////////////////////////////////
 
 #include <cv.h>

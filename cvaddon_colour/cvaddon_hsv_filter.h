@@ -13,7 +13,8 @@
 // images. The class will handle the histogram, its accumulation
 // and blending, as well as backprojection.
 //
-// Will support ROI
+// Supports ROI (assumes all ROI are equal in size AND location
+// for a given function)
 ////////////////////////////////////////////////////////////
 
 // Macro for easy definition of HSV range limits

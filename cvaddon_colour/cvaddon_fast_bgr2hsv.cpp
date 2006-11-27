@@ -69,10 +69,22 @@ void cvAddonBGR2HSV_LUT(const IplImage *src, IplImage *hue, IplImage *sat, IplIm
 	CvSize satSize;
 	CvSize valSize;	
 	
-	CV_FUNCNAME( "BGR2HSV LUT" );
+	int i, j;
+	int r, g, b;
+	int idx;
+	uchar *srcRow, *hueRow, *satRow, *valRow;
+	CvRect roi;
 
 	const int B_MULT = 256*256;
 	const int G_MULT = 256;
+
+	// ROI support
+	int I_START;
+	int I_END;
+	int J_START;
+	int J_END;
+
+	CV_FUNCNAME( "BGR2HSV LUT" );
 
 	__BEGIN__;
 	if(!hsvLutFilled) {
@@ -113,18 +125,21 @@ void cvAddonBGR2HSV_LUT(const IplImage *src, IplImage *hue, IplImage *sat, IplIm
 		CV_ERROR(CV_StsBadSize, "Bad Size: src and val mismatch");
 	}
 
-	int i, j;
-	int r, g, b;
-	int idx;
-	uchar *srcRow, *hueRow, *satRow, *valRow;
-
-	for(i = 0; i < srcSize.height; ++i) {
+	roi = cvGetImageROI(src);
+	I_START = roi.y;
+	I_END = roi.y + roi.height;
+	J_START = roi.x;
+	J_END = roi.x + roi.width;
+	
+//	for(i = 0; i < srcSize.height; ++i) {
+	for(i = I_START; i < I_END; ++i) {
 		srcRow = (uchar*)(src->imageData + src->widthStep*i);
 		hueRow = (uchar*)(hue->imageData + hue->widthStep*i);
 		satRow = (uchar*)(sat->imageData + sat->widthStep*i);
 		valRow = (uchar*)(val->imageData + val->widthStep*i);
 
-		for(j = 0; j < srcSize.width; ++j) {
+//		for(j = 0; j < srcSize.width; ++j) {
+		for(j = J_START; j < J_END; ++j) {
 			b = srcRow[j*3];
 			g = srcRow[j*3 + 1];
 			r = srcRow[j*3 + 2];
