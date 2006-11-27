@@ -16,42 +16,49 @@ static HueSatVal hsvLut[LUT_SIZE];
 // Call this BEFORE using the conversion function
 void cvAddonInitHsvLut(void) 
 {
-	IplImage *rgb = cvCreateImage(cvSize(256, 256), IPL_DEPTH_8U, 3);
-	IplImage *hsv = cvCreateImage(cvSize(256, 256), IPL_DEPTH_8U, 3);
-
 	int i, j, k;
 	uchar *rgbRow, *hsvRow;
+	IplImage *rgb;
+	IplImage *hsv;
+		
+	if(!hsvLutFilled) {
+		rgb = cvCreateImage(cvSize(256, 256), IPL_DEPTH_8U, 3);
+		hsv = cvCreateImage(cvSize(256, 256), IPL_DEPTH_8U, 3);
 
-	// Filling red and yellow channels
-	for(i = 0; i < 256; ++i) {
-		rgbRow = (uchar*)(rgb->imageData + rgb->widthStep*i);
-		for(j = 0; j < 256; ++j) {
-			rgbRow[j*3 + 2] = (uchar)i;
-			rgbRow[j*3 + 1] = (uchar)j;
-		}
-	}
-	
-	for(k = 0; k < 256; ++k) {
-		// Blue colour loop
+
+		// Filling red and yellow channels
 		for(i = 0; i < 256; ++i) {
 			rgbRow = (uchar*)(rgb->imageData + rgb->widthStep*i);
 			for(j = 0; j < 256; ++j) {
-				rgbRow[j*3] = (uchar)k;
+				rgbRow[j*3 + 2] = (uchar)i;
+				rgbRow[j*3 + 1] = (uchar)j;
 			}
 		}
-		cvCvtColor(rgb, hsv, CV_BGR2HSV);
 		
-		for(i = 0; i < 256; ++i) {
-			hsvRow = (uchar*)(hsv->imageData + hsv->widthStep*i);
-			for(j = 0; j < 256; ++j) {
-				int idx = (k*256+j)*256 + i;
-				hsvLut[ idx ].h = hsvRow[3*j];
-				hsvLut[ idx ].s = hsvRow[3*j + 1];
-				hsvLut[ idx ].v = hsvRow[3*j + 2];
+		for(k = 0; k < 256; ++k) {
+			// Blue colour loop
+			for(i = 0; i < 256; ++i) {
+				rgbRow = (uchar*)(rgb->imageData + rgb->widthStep*i);
+				for(j = 0; j < 256; ++j) {
+					rgbRow[j*3] = (uchar)k;
+				}
+			}
+			cvCvtColor(rgb, hsv, CV_BGR2HSV);
+			
+			for(i = 0; i < 256; ++i) {
+				hsvRow = (uchar*)(hsv->imageData + hsv->widthStep*i);
+				for(j = 0; j < 256; ++j) {
+					int idx = (k*256+j)*256 + i;
+					hsvLut[ idx ].h = hsvRow[3*j];
+					hsvLut[ idx ].s = hsvRow[3*j + 1];
+					hsvLut[ idx ].v = hsvRow[3*j + 2];
+				}
 			}
 		}
+		cvReleaseImage(&rgb);
+		cvReleaseImage(&hsv);
+		hsvLutFilled = true;
 	}
-	hsvLutFilled = true;
 }
 
 

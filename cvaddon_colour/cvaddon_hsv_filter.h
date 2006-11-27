@@ -67,10 +67,13 @@ public:
 	// ******* Public Constants *******
 	const int H_BINS;	// Number of hue bins in histogram
 	const int S_BINS;	// Number of saturation bins
+	
+	// Provided as a public member variable for convenience (and laziness -_-)
+	CvHistogram *hist;
 
 private:
 	// ******* Internal Data *********
-	CvHistogram *hist, *oldHist;
+	CvHistogram *oldHist;
 	int sizes[2];
 	IplImage *planes[2];
 };

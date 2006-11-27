@@ -20,7 +20,7 @@ using std::endl;
 
 int main()
 {
-	IplImage *in = cvLoadImage("test0.bmp");
+	IplImage *in = cvLoadImage("test1.bmp");
 	CvSize imgSize = cvGetSize(in);
 
 	cvAddonShowImageOnce(in);
@@ -30,20 +30,29 @@ int main()
 	IplImage *v = cvCreateImage(imgSize, IPL_DEPTH_8U, 1);
 	IplImage *bp = cvCreateImage(imgSize, IPL_DEPTH_8U, 1);
 
+	IplImage *histImg = cvCreateImage(cvSize(64, 360), IPL_DEPTH_8U, 3);
+
 	CvAddonHSVFilter hsvFilter;
+
+	
 
 	int i;
 	FastTimer t0;
 
 	t0.getLoopTime();
 	for(i = 0; i < TRIALS; ++i)
-		hsvFilter.buildHist(in, h, s, v, cvScalar(-1,-1,10), cvScalar(256,256,256), NULL);
+		hsvFilter.buildHist(in, h, s, v, cvScalar(-1,-1,-1), cvScalar(256,256,256), NULL);
 
 	cerr << "buildHist: " << t0.getLoopTime() / (float)TRIALS << endl;
 
+	hsvFilter.drawHist(histImg);
+	cvAddonShowImageOnce(histImg);
+
+	exit(1);
+
 	t0.getLoopTime();
 	for(i = 0; i < TRIALS; ++i)
-		hsvFilter.backProject(in, h, s, v, bp, cvScalar(-1,-1,10), cvScalar(256,256,256), NULL);
+		hsvFilter.backProject(in, h, s, v, bp, cvScalar(-1,-1,-1), cvScalar(256,256,256), NULL);
 	cerr << "bp: " << t0.getLoopTime() / (float)TRIALS << endl;
 
 	cvAddonShowImageOnce(bp);
@@ -54,6 +63,10 @@ int main()
 	for(i = 0; i < TRIALS; ++i)
 		hsvFilter.blendHist(in, h, s, v, cvScalar(-1,-1,-1), cvScalar(256,256,256), NULL, alpha);
 	cerr << "blend: " << t0.getLoopTime() / (float)TRIALS << endl;
+
+	hsvFilter.drawHist(histImg);
+	cvAddonShowImageOnce(histImg);
+
 
 	hsvFilter.backProject(in, h, s, v, bp, cvScalar(-1,-1,-1), cvScalar(256,256,256), NULL);
 

@@ -18,7 +18,7 @@ CvAddonHSVFilter::CvAddonHSVFilter(const int& hBins, const int& sBins)
 	cvClearHist(oldHist);
 
 	// Init Look up table for BGR ==> HSV
-	cvAddonInitHsvLut();
+	cvAddonInitHsvLut(); 
 }
 
 CvAddonHSVFilter::~CvAddonHSVFilter()
@@ -30,13 +30,18 @@ CvAddonHSVFilter::~CvAddonHSVFilter()
 void CvAddonHSVFilter::buildHist(const IplImage *src, IplImage *H, IplImage *S, IplImage *V
 		, const CvScalar &thresh0, const CvScalar &thresh1, const IplImage *mask)
 {
+	int i, j;
+	int minS;
+	CvMat mat;
 	CvScalar lower, upper;
 	// DO ERROR CHECK
 	
 	cvAddonBGR2HSV_LUT(src, H, S, V);
 
-	lowerUpper(thresh0, thresh1, lower, upper);
+	cerr << "Sat:" << (int)CV_IMAGE_ELEM(S, uchar, 1, 1) << endl;
 
+	// Creating mask from V plane of HSV
+	lowerUpper(thresh0, thresh1, lower, upper);
 	cvInRangeS(V, cvScalarAll(lower.val[2]), cvScalarAll(upper.val[2]), V);
 
 	// Combining mask and V threshold
@@ -47,7 +52,21 @@ void CvAddonHSVFilter::buildHist(const IplImage *src, IplImage *H, IplImage *S, 
 	planes[1] = S;
 	cvCalcHist(planes, hist, 0, V);
 
-	cvNormalizeHist(hist, 255.0);
+	// Clearing bins that are outside the S limits
+	cvGetMat( hist->bins, &mat, 0, 1 );
+	//lower.val[1] upper.val[1]
+
+	minS = cvRound(lower.val[1] * (float)S_BINS / 255.0);
+
+	cerr << minS << endl;
+	for(i = 0; i < H_BINS; ++i)
+	{
+		for(j = 0; j < minS; ++j)
+			CV_MAT_VAL(&mat, float, i, j) = 0;	
+	}
+
+	if(cvSum(&mat).val[0] >= 1.0)
+		cvNormalizeHist(hist, 255.0);
 }
 
 void CvAddonHSVFilter::blendHist(const IplImage *src, IplImage *H, IplImage *S, IplImage *V
@@ -91,4 +110,37 @@ void CvAddonHSVFilter::backProject(const IplImage *src, IplImage *H, IplImage *S
 
 	// Masking Result
 	cvAnd(V, dst, dst);
+}
+
+void CvAddonHSVFilter::drawHist(IplImage *dst)
+{
+	// TODO error check
+
+	int h,s;
+	float SCALE_H, SCALE_S;
+
+	float maxValue;
+	cvGetMinMaxHistValue( hist, 0, &maxValue, 0, 0 );
+
+    cvZero( dst );
+
+	SCALE_H = dst->height / H_BINS;
+	SCALE_S = dst->width / S_BINS;
+    for( h = 0; h < H_BINS; h++ )
+    {
+        for( s = 0; s < S_BINS; s++ )
+        {
+
+            float binVal = cvQueryHistValue_2D( hist, h, s );
+            int intensity = cvRound(binVal * 255.0 / maxValue);
+            cvRectangle( dst, cvPoint(  s*SCALE_S, h*SCALE_H ),
+                         cvPoint( (s+1)*SCALE_S - 1, (h+1)*SCALE_H - 1),
+                         cvScalar( h / (float)H_BINS * 179
+							, s / (float)S_BINS * 255
+							, 255 - intensity
+							, 0 ), 
+                         CV_FILLED );
+        }
+    }
+	cvCvtColor(dst, dst, CV_HSV2BGR);
 }
