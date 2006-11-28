@@ -7,6 +7,10 @@
 // HSV colour filter
 #include "cvaddon_hsv_filter.h"
 
+// Blob extraction library
+#include "blob.h"
+#include "BlobResult.h"
+
 #include <iostream>
 using std::cerr;
 using std::endl;
@@ -16,13 +20,16 @@ CvHistogram *hist = 0;
 
 int select_object = 0;
 int track_object = 0;
-int show_hist = 1;
 int blend_hist = 0;
 CvPoint origin;
 CvRect selection;
 CvRect track_window;
 CvBox2D track_box;
 CvConnectedComp track_comp;
+
+// GUI
+int show_hist = 1;
+int show_blob = 1;
 
 // Default trackbar values
 int vmin = 16, vmax = 240, smin = 30;
@@ -110,6 +117,7 @@ int main( int argc, char** argv )
 	cerr << "\t" << "Cycle through tracking modes - t" << endl;
 	cerr << "\t" << "Restart at first frame - r" << endl;
 	cerr << "\t" << "Hide/Show Histogram - h" << endl;
+	cerr << "\t" << "Hide/Show Blob Results - b" << endl;
 		
     cvNamedWindow( "HSV Histogram", 1 );
     cvNamedWindow( "Colour Object", 1 );
@@ -141,6 +149,11 @@ int main( int argc, char** argv )
 	
 	// My own hsv filter
 	CvAddonHSVFilter hsvFilter(45, 8);
+
+	// cvBlobsList
+	CBlobResult blobs;
+	CBlob blob1;
+	CBlob blob2;
 
     for(;;)
     {
@@ -186,22 +199,47 @@ int main( int argc, char** argv )
 			bp->origin = image->origin;
 			hsvFilter.backProject(image, H, S, V, bp, CV_HSV(-1,_smin, _vmin), CV_HSV(256, 256, _vmax) );
 
-//            cvCalcBackProject( &hue, backproject, hist );
-//            cvAnd( backproject, mask, backproject, 0 );
-            
-			cvCamShift( bp, track_window,
-                        cvTermCriteria( CV_TERMCRIT_EPS | CV_TERMCRIT_ITER, 10, 1 ),
-                        &track_comp, &track_box );
-            track_window = track_comp.rect;
-            
-//            if( backproject_mode )
-//                cvCvtColor( backproject, image, CV_GRAY2BGR );
-            if( image->origin )
-                track_box.angle = -track_box.angle;
+			// Extract the blobs using a threshold of 100 in the image
+			blobs = CBlobResult( bp, NULL, 25, true );
 
-			// TODO: Bugs out if colour object disappears off the screen quickly 
-			// as it tries to draw outside the window (very rare) 
-            cvEllipseBox( image, track_box, CV_RGB(255,0,0), 3, CV_AA, 0 );
+			// ( the criteria to filter can be any class derived from COperadorBlob ) 
+			blobs.Filter( blobs, B_INCLUDE, CBlobGetArea(), B_GREATER, 500 );
+
+
+			// from the filtered blobs, get the blob with biggest perimeter
+			blobs.GetNthBlob( CBlobGetArea(), 0, blob1 );
+			blobs.GetNthBlob( CBlobGetArea(), 1, blob2 );
+
+			// plot the selected blobs in a output image
+			if(show_blob) {
+				if(blobs.GetNumBlobs() >= 2) {
+					blob1.FillBlob( image, CV_RGB( 255, 0, 0 ));
+					blob2.FillBlob( image, CV_RGB( 0, 255, 0 ));
+				}
+			}
+//			blobWithLessArea.FillBlob( image, CV_RGB( 0, 255, 0 ));
+
+
+
+////            cvCalcBackProject( &hue, backproject, hist );
+////            cvAnd( backproject, mask, backproject, 0 );
+//            
+//			cvCamShift( bp, track_window,
+//                        cvTermCriteria( CV_TERMCRIT_EPS | CV_TERMCRIT_ITER, 10, 1 ),
+//                        &track_comp, &track_box );
+//            track_window = track_comp.rect;
+//            
+////            if( backproject_mode )
+////                cvCvtColor( backproject, image, CV_GRAY2BGR );
+//            if( image->origin )
+//                track_box.angle = -track_box.angle;
+//
+//			// TODO: Bugs out if colour object disappears off the screen quickly 
+//			// as it tries to draw outside the window (very rare) 
+//            cvEllipseBox( image, track_box, CV_RGB(255,0,0), 3, CV_AA, 0 );
+
+			CvPoint centroid = cvPoint(blob2.MinX() + (( blob2.MaxX() - blob2.MinX() ) / 2.0), blob2.MinY() + (( blob2.MaxY() - blob2.MinY() ) / 2.0));
+			cvCircle(image, centroid, 4, CV_RGB(0,0,255));
         }
         
 		// Select window (exclusion) effect
@@ -235,6 +273,10 @@ int main( int argc, char** argv )
                 cvDestroyWindow( "HSV Histogram" );
             else
                 cvNamedWindow( "HSV Histogram", 1 );
+            break;
+
+        case 'b':
+            show_blob ^= 1;
             break;
         default:
             ;
