@@ -1,0 +1,2 @@
+1) Interface with image sequence as input
+2) Results ==> file with blob tracker and mean shift

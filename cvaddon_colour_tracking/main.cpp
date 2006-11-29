@@ -1,5 +1,20 @@
+// HSV colour tracker, uses Hue and Saturation
+// histograms. Value (V in HSV) is used to reject
+// pixels near the central axis of the HSV cone
+// (~= singularity)
+//
+// The code provides the following tracking modes, all run in parallel
+// 1) Camshift tracking (see camshiftdemo.cpp in OpenCV samples)
+// 2) Centroid of each frame using cvMoments (no temporal smoothing)
+//
+// All of the above uses the back projection image as 
+// input, so make sure it is reasonably clean and noise-free
+//
 // Based loosely on camshiftdemo of OpenCV 1.0
 // Code by Wai Ho Li
+
+// Uncomment to use webcam (or avi video) as input
+//#define CV_CAPTURE
 
 #include "cv.h"
 #include "highgui.h"
@@ -10,6 +25,9 @@
 // Blob extraction library
 #include "blob.h"
 #include "BlobResult.h"
+
+// Image Sequence Reader
+#include "cvaddon_image_reader.h"
 
 #include <iostream>
 using std::cerr;
@@ -29,7 +47,14 @@ CvConnectedComp track_comp;
 
 // GUI
 int show_hist = 1;
-int show_blob = 1;
+int show_blob = 0;
+int show_camshift = 0;
+
+// Pauses frame progress when using image sequence
+#ifndef CV_CAPTURE
+	int start_frame_step = 0;
+	int last_frame = -1, this_frame = 0;
+#endif
 
 // Default trackbar values
 int vmin = 16, vmax = 240, smin = 30;
@@ -96,9 +121,10 @@ void mouseCB( int event, int x, int y, int flags, void* param )
 
 int main( int argc, char** argv )
 {
-    CvCapture* capture = 0;
 	IplImage* frame = 0;
     
+#ifdef CV_CAPTURE
+	CvCapture* capture = 0;
     if( argc == 1 || (argc == 2 && strlen(argv[1]) == 1 && isdigit(argv[1][0])))
         capture = cvCaptureFromCAM( argc == 2 ? argv[1][0] - '0' : 0 );
     else if( argc == 2 )
@@ -110,14 +136,30 @@ int main( int argc, char** argv )
         return -1;
     }
 
+	frame = cvQueryFrame( capture );
+	if(!frame) {
+		cerr << "Couldn't get video frame!!!" << endl;
+		exit(1);
+	}
+#else
+	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/white_back_50fps/";
+//	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/noise_back_50fps/";
+//	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/mixed_back_50fps/";
+//	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/red_back_50fps/";
+	const char* IMAGE_NAME = "default070.bmp";		// Frame skip after 069 for some odd reason
+//	const char* IMAGE_NAME = "green_tape.bmp";		// Frame skip after 069 for some odd reason	
+	CvAddonImageReader images(IMAGE_PATH, IMAGE_NAME);
+
+	frame = images.load();
+#endif
+
     cerr << "Hot Keys: " << "\n";
 	cerr << "\t" << "Quit - ESC or q" << endl;
-//	cerr << "\t" << "Start/Pause video - Spacebar" << endl;
-//	cerr << "\t" << "Step through video frame by frame - Left/Right Arrows" << endl;
-	cerr << "\t" << "Cycle through tracking modes - t" << endl;
-	cerr << "\t" << "Restart at first frame - r" << endl;
+	cerr << "\t" << "Start/Pause frame stepping (image sequence only) - SPACEBAR" << endl;
+	cerr << "\t" << "Restart at first frame (image sequence only) - r" << endl;
 	cerr << "\t" << "Hide/Show Histogram - h" << endl;
 	cerr << "\t" << "Hide/Show Blob Results - b" << endl;
+	cerr << "\t" << "Hide/Show Camshift Results - b" << endl;
 		
     cvNamedWindow( "HSV Histogram", 1 );
     cvNamedWindow( "Colour Object", 1 );
@@ -128,11 +170,7 @@ int main( int argc, char** argv )
     cvCreateTrackbar( "Vmax", "Back Projection", &vmax, 256, 0 );
     cvCreateTrackbar( "Smin", "Back Projection", &smin, 256, 0 );
 
-	frame = cvQueryFrame( capture );
-	if(!frame) {
-		cerr << "Couldn't get video frame!!!" << endl;
-		exit(1);
-	}
+
 
 	CvSize imgSize = cvGetSize(frame);
     image = cvCreateImage( imgSize, IPL_DEPTH_8U, 3 );
@@ -157,12 +195,18 @@ int main( int argc, char** argv )
 
     for(;;)
     {
-        
-        int i, c;
+        int c;
 
+#ifdef CV_CAPTURE
         frame = cvQueryFrame( capture );
-        if( !frame )
-            break;
+#else
+		if(this_frame != last_frame) {
+			cvReleaseImage(&frame);
+			frame = images.load();
+			this_frame = images.number();
+		}
+#endif
+        if( !frame ) break;
 
 		image->origin = frame->origin;
         cvCopy( frame, image, 0 );
@@ -216,30 +260,45 @@ int main( int argc, char** argv )
 					blob1.FillBlob( image, CV_RGB( 255, 0, 0 ));
 					blob2.FillBlob( image, CV_RGB( 0, 255, 0 ));
 				}
+
+				CvPoint centroid = cvPoint(blob2.MinX() + (( blob2.MaxX() - blob2.MinX() ) / 2.0), blob2.MinY() + (( blob2.MaxY() - blob2.MinY() ) / 2.0));
+
+				CvPoint a = cvPoint(blob2.MinX(), blob2.MinY());
+				CvPoint b = cvPoint(blob2.MaxX(), blob2.MaxY());
+
+				cvCircle(image, centroid, 4, CV_RGB(0,0,255), CV_FILLED);
+				cvRectangle(image, a, b, CV_RGB(0,0,255), 2, CV_AA);
 			}
 //			blobWithLessArea.FillBlob( image, CV_RGB( 0, 255, 0 ));
 
 
 
-////            cvCalcBackProject( &hue, backproject, hist );
-////            cvAnd( backproject, mask, backproject, 0 );
-//            
-//			cvCamShift( bp, track_window,
-//                        cvTermCriteria( CV_TERMCRIT_EPS | CV_TERMCRIT_ITER, 10, 1 ),
-//                        &track_comp, &track_box );
-//            track_window = track_comp.rect;
-//            
-////            if( backproject_mode )
-////                cvCvtColor( backproject, image, CV_GRAY2BGR );
-//            if( image->origin )
-//                track_box.angle = -track_box.angle;
-//
-//			// TODO: Bugs out if colour object disappears off the screen quickly 
-//			// as it tries to draw outside the window (very rare) 
-//            cvEllipseBox( image, track_box, CV_RGB(255,0,0), 3, CV_AA, 0 );
+//            cvCalcBackProject( &hue, backproject, hist );
+//            cvAnd( backproject, mask, backproject, 0 );
+            
+			cvCamShift( bp, track_window,
+                        cvTermCriteria( CV_TERMCRIT_EPS | CV_TERMCRIT_ITER, 10, 1 ),
+                        &track_comp, &track_box );
+            track_window = track_comp.rect;
+            
+//            if( backproject_mode )
+//                cvCvtColor( backproject, image, CV_GRAY2BGR );
+            if( image->origin )
+                track_box.angle = -track_box.angle;
 
-			CvPoint centroid = cvPoint(blob2.MinX() + (( blob2.MaxX() - blob2.MinX() ) / 2.0), blob2.MinY() + (( blob2.MaxY() - blob2.MinY() ) / 2.0));
-			cvCircle(image, centroid, 4, CV_RGB(0,0,255));
+			if(show_camshift) {
+				// TODO: Bugs out if colour object disappears off the screen quickly 
+				// as it tries to draw outside the window (very rare) 
+				cvEllipseBox( image, track_box, CV_RGB(0,255,0), 3, CV_AA, 0 );
+				cvCircle(image, cvPointFrom32f(track_box.center), 4, CV_RGB(0,255,0), CV_FILLED);
+			}
+
+			// Center of Gravity
+			CvMoments moments;
+			cvMoments(bp, &moments, 0);
+			float dXCenter = moments.m10 / moments.m00;
+			float dYCenter = moments.m01 / moments.m00;
+			cvCircle(image, cvPoint(dXCenter, dYCenter), 3, CV_RGB(0,255,255), CV_FILLED);
         }
         
 		// Select window (exclusion) effect
@@ -260,13 +319,6 @@ int main( int argc, char** argv )
 
         switch( (char) c )
         {
-//        case 'b':
-//            backproject_mode ^= 1;
-//            break;
-//        case 'c':
-//            track_object = 0;
-//            cvZero( histImg );
-//            break;
         case 'h':
             show_hist ^= 1;
             if( !show_hist )
@@ -278,12 +330,33 @@ int main( int argc, char** argv )
         case 'b':
             show_blob ^= 1;
             break;
+
+		case 'c':
+			show_camshift ^= 1;
         default:
             ;
         }
-    }
 
+// Image Sequence input
+#ifndef CV_CAPTURE
+//		cvReleaseImage(&frame);
+				
+		if(c == 'r') images.reset();
+		if(c == ' ') start_frame_step ^= 1;
+
+		last_frame = this_frame;
+
+		if(start_frame_step)
+			images.next();
+
+		this_frame = images.number();
+#endif
+	}
+
+#ifdef CV_CAPTURE
     cvReleaseCapture( &capture );
+#endif
+
     cvDestroyWindow("Back Projection");
     return 0;
 }

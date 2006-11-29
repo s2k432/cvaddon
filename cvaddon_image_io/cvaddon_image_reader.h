@@ -63,6 +63,7 @@ public:
 
 	// Start at the first file again
 	inline void reset() { filename.number = firstNum; }
+	inline int number() { return filename.number; }
 
 private:
 	whFilename filename;
