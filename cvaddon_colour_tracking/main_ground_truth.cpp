@@ -1,3 +1,6 @@
+// Tracks the two pieces of green tape above and below 
+// an object to get ground truth
+
 // HSV colour tracker, uses Hue and Saturation
 // histograms. Value (V in HSV) is used to reject
 // pixels near the central axis of the HSV cone
@@ -29,16 +32,11 @@
 // Image Sequence Reader
 #include "cvaddon_image_reader.h"
 
-// Binary pixel location extraction (edge pixel location)
-#include "cvaddon_edge.h"
-
-#include "cvaddon_math.h"
-
 #include <iostream>
 using std::cerr;
 using std::endl;
 
-IplImage *image = 0, *hsv = 0, *hue = 0, *mask = 0, *backproject = 0, *histImg = 0;
+IplImage *image = 0, *hsv = 0, *hue = 0, *mask = 0, *backproject = 0, *histImg = 0, *HSV = 0;
 CvHistogram *hist = 0;
 
 int select_object = 0;
@@ -61,8 +59,10 @@ int show_camshift = 0;
 	int last_frame = -1, this_frame = 0;
 #endif
 
-// Default trackbar values
-int vmin = 16, vmax = 240, smin = 30;
+// Default trackbar values (for green tape, white_back_50fps)
+int vmin = 69, vmax = 140;
+int smin = 10, smax = 50;
+int hmin = 30, hmax = 130;
 
 // Constants
 const float HIST_BLEND_ALPHA = 0.2f;
@@ -147,15 +147,16 @@ int main( int argc, char** argv )
 		exit(1);
 	}
 #else
-//	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/white_back_50fps/";
+
+	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/white_back_50fps/";
+
 //	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/noise_back_50fps/";
 //	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/mixed_back_50fps/";
 //	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/red_back_50fps/";
-//	const char* IMAGE_NAME = "default070.bmp";		// Frame skip after 069 for some odd reason
-
-	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/white_50fps_scale/";
-	const char* IMAGE_NAME = "default000.bmp";		// Frame skip after 069 for some odd reason
-
+	const char* IMAGE_NAME = "default070.bmp";		// Frame skip after 069 for some odd reason
+//	const char* TAPE_IMAGE_NAME = "green_tape.bmp";		// Frame skip after 069 for some odd reason	
+//	
+//	CvAddonImageReader tape(IMAGE_PATH, TAPE_IMAGE_NAME);
 	CvAddonImageReader images(IMAGE_PATH, IMAGE_NAME);
 
 	frame = images.load();
@@ -177,7 +178,10 @@ int main( int argc, char** argv )
     cvCreateTrackbar( "Vmin", "Back Projection", &vmin, 256, 0 );
     cvCreateTrackbar( "Vmax", "Back Projection", &vmax, 256, 0 );
     cvCreateTrackbar( "Smin", "Back Projection", &smin, 256, 0 );
-
+	cvCreateTrackbar( "Smax", "Back Projection", &smax, 256, 0 );
+    cvCreateTrackbar( "Hmin", "Back Projection", &hmin, 180, 0 );
+    cvCreateTrackbar( "Hmax", "Back Projection", &hmax, 180, 0 );
+ 
 
 
 	CvSize imgSize = cvGetSize(frame);
@@ -192,14 +196,18 @@ int main( int argc, char** argv )
 	H = cvCreateImage( imgSize, IPL_DEPTH_8U, 1);
 	S = cvCreateImage( imgSize, IPL_DEPTH_8U, 1);
 	V = cvCreateImage( imgSize, IPL_DEPTH_8U, 1);
+	HSV = cvCreateImage( imgSize, IPL_DEPTH_8U, 3);
 	
 	// My own hsv filter
 	CvAddonHSVFilter hsvFilter(45, 8);
 
 	// cvBlobsList
 	CBlobResult blobs;
+	CBlob blob0;
 	CBlob blob1;
 	CBlob blob2;
+
+	bool init = false;
 
     for(;;)
     {
@@ -208,6 +216,10 @@ int main( int argc, char** argv )
 #ifdef CV_CAPTURE
         frame = cvQueryFrame( capture );
 #else
+//		if(!init) {
+//			frame = tape.load();
+//		}
+//		else 
 		if(this_frame != last_frame) {
 			cvReleaseImage(&frame);
 			frame = images.load();
@@ -219,37 +231,86 @@ int main( int argc, char** argv )
 		image->origin = frame->origin;
         cvCopy( frame, image, 0 );
        
-        if( track_object )
-        {
-            int _vmin = vmin, _vmax = vmax, _smin = smin;
+//        if( track_object )
+//        {
+            int _vmin = vmin, _vmax = vmax;
+			int _smin = smin, _smax = smax;
+			int _hmin = hmin, _hmax = hmax;
 
-            if( track_object < 0 )
-            {
-//                float max_val = 0.f;
-                cvSetImageROI( image, selection );
-                cvSetImageROI( H, selection );
-				cvSetImageROI( S, selection );
-				cvSetImageROI( V, selection );
-
-				if(blend_hist)
-					hsvFilter.blendHist(image, H, S, V, CV_HSV(-1, _smin, _vmin), CV_HSV(256, 256, _vmax), NULL, HIST_BLEND_ALPHA );
-				else
-					hsvFilter.buildHist(image, H, S, V, CV_HSV(-1, _smin, _vmin), CV_HSV(256, 256, _vmax) );
-                
-                cvResetImageROI(image);
-                cvResetImageROI(H);
-				cvResetImageROI(S);
-				cvResetImageROI(V);
-
-                track_window = selection;
-                track_object = 1;
-
-				hsvFilter.drawHist(histImg);
-            }
+//            if( track_object < 0 )
+//            {
+////                float max_val = 0.f;
+//                cvSetImageROI( image, selection );
+//                cvSetImageROI( H, selection );
+//				cvSetImageROI( S, selection );
+//				cvSetImageROI( V, selection );
+//
+//				if(blend_hist)
+//					hsvFilter.blendHist(image, H, S, V, CV_HSV(-1, _smin, _vmin), CV_HSV(256, 256, _vmax), NULL, HIST_BLEND_ALPHA );
+//				else
+//					hsvFilter.buildHist(image, H, S, V, CV_HSV(-1, _smin, _vmin), CV_HSV(256, 256, _vmax) );
+//                
+//                cvResetImageROI(image);
+//                cvResetImageROI(H);
+//				cvResetImageROI(S);
+//				cvResetImageROI(V);
+//
+//                track_window = selection;
+//                track_object = 1;
+//
+//				hsvFilter.drawHist(histImg);
+//            }
 
 			cvZero(bp);
 			bp->origin = image->origin;
-			hsvFilter.backProject(image, H, S, V, bp, CV_HSV(-1,_smin, _vmin), CV_HSV(256, 256, _vmax) );
+
+			// GROUND TRUTH MANUAL SEG
+			cvCvtColor(image, HSV, CV_BGR2HSV);
+
+			CvScalar lower = cvScalar(_hmin, _smin, _vmin);
+			CvScalar upper = cvScalar(_hmax, _smax, _vmax);
+			cvInRangeS(HSV, lower, upper, V);
+
+//			cvInRangeS(image, lower, upper, V);
+
+
+			CvScalar maskColor = CV_RGB(0,0,0);
+//			cvRectangle(V, cvPoint(0,0), cvPoint(132, imgSize.height-1), maskColor, CV_FILLED);
+//			cvRectangle(V, cvPoint(imgSize.width-1-100,0), cvPoint(imgSize.width-1, imgSize.height-1), maskColor, CV_FILLED);
+			cvRectangle(V, cvPoint(0,0), cvPoint(imgSize.width-1, 80), maskColor, CV_FILLED);
+
+			cvSmooth(V, bp, CV_MEDIAN, 5, 5);
+			
+
+			if(show_blob) {
+				blobs = CBlobResult( bp, NULL, 25, true );
+				
+				// ( the criteria to filter can be any class derived from COperadorBlob ) 
+				blobs.Filter( blobs, B_INCLUDE, CBlobGetArea(), B_GREATER, 10);
+
+				// from the filtered blobs, get the blob with biggest perimeter
+				blobs.GetNthBlob( CBlobGetArea(), 0, blob0 );
+				blobs.GetNthBlob( CBlobGetArea(), 1, blob1 );
+				blobs.GetNthBlob( CBlobGetArea(), 2, blob2 );
+				if(blobs.GetNumBlobs() >= 3) {
+					if(blob1.MinY() < blob2.MinY()) { 
+						blob1.FillBlob( image, CV_RGB( 255, 0, 0 ));
+						blob2.FillBlob( image, CV_RGB( 0, 255, 0 ));
+					}
+					else {
+						blob1.FillBlob( image, CV_RGB( 0, 255, 0 ));
+						blob2.FillBlob( image, CV_RGB( 255, 0, 0 ));
+					}
+					blob0.FillBlob( image, CV_RGB( 0, 0, 255 ));
+				}
+				else {
+					start_frame_step = 0;
+				}
+			}
+
+#ifdef _LOL_
+
+//			hsvFilter.backProject(image, H, S, V, bp, CV_HSV(-1,_smin, _vmin), CV_HSV(256, 256, _vmax) );
 
 			// Extract the blobs using a threshold of 100 in the image
 			blobs = CBlobResult( bp, NULL, 25, true );
@@ -265,117 +326,17 @@ int main( int argc, char** argv )
 			// plot the selected blobs in a output image
 			if(show_blob) {
 				if(blobs.GetNumBlobs() >= 2) {
-//					blob1.FillBlob( image, CV_RGB( 255, 0, 0 ));
-//					blob2.FillBlob( image, CV_RGB( 0, 255, 0 ));
-
-					CvPoint centroid = cvPoint(blob2.MinX() + (( blob2.MaxX() - blob2.MinX() ) / 2.0), blob2.MinY() + (( blob2.MaxY() - blob2.MinY() ) / 2.0));
-
-					CvPoint a = cvPoint(blob2.MinX(), blob2.MinY());
-					CvPoint b = cvPoint(blob2.MaxX(), blob2.MaxY());
-
-					cvCircle(image, centroid, 4, CV_RGB(0,0,255), CV_FILLED);
-					cvRectangle(image, a, b, CV_RGB(0,0,255), 2, CV_AA);
-
-					cvZero(V);
-					blob2.FillBlob( V, CV_RGB(255,255,255));
-	
-					const int MAX_BINARY_POINTS = 60000;
-					CvPoint nonZero[MAX_BINARY_POINTS];
-					int numPoints = cvAddonFindNonZeroPixels<uchar, CvPoint>(V, nonZero, MAX_BINARY_POINTS);
-
-					if(numPoints > 0) {
-						
-						CvMat *pcaData = cvCreateMat( 2, numPoints, CV_32F );
-						CvMat *pcaAvg = cvCreateMat( 2, 1, CV_32F );
-						CvMat* eigenVectors = cvCreateMat( 2, 2, CV_32F );
-						CvMat* eigenVectorsMax = cvCreateMat( 1, 2, CV_32F );
-						CvMat* eigenVectorsMin = cvCreateMat( 1, 2, CV_32F );
-						CvMat* eigenValues = cvCreateMat( 2, 1, CV_32F );
-
-						CvMat* pcaProj = cvCreateMat( numPoints, 1, CV_32F );
-						CvMat* pcaResults = cvCreateMat( 2, numPoints, CV_32F );
-
-						int i;
-						for(i = 0; i < numPoints; ++i)
-						{
-
-							// 1st Row (x)
-							( (float*)(pcaData->data.ptr) )[i] = nonZero[i].x;
-
-							// 2nd Row (y)
-							( (float*)(pcaData->data.ptr + pcaData->step) )[i] = nonZero[i].y;
-						}
-
-						// PCA
-						cvCalcPCA(pcaData, pcaAvg, eigenValues, eigenVectors, CV_PCA_DATA_AS_COL );
-
-						cerr << CV_MAT_VAL(eigenValues, float, 0, 0) << "," << CV_MAT_VAL(eigenValues, float, 1, 0) << endl;
-						cerr << CV_MAT_VAL(eigenVectors, float, 0, 0) << " | " << CV_MAT_VAL(eigenVectors, float, 0, 1) << endl;
-						cerr << CV_MAT_VAL(eigenVectors, float, 1, 0) << " | " << CV_MAT_VAL(eigenVectors, float, 1, 1) << endl;
-
-						if(CV_MAT_VAL(eigenValues, float, 0, 0) > CV_MAT_VAL(eigenValues, float, 1, 0)) {
-							CV_MAT_VAL(eigenVectorsMax, float, 0, 0) = CV_MAT_VAL(eigenVectors, float, 0, 0);
-							CV_MAT_VAL(eigenVectorsMax, float, 0, 1) = CV_MAT_VAL(eigenVectors, float, 0, 1);
-
-							CV_MAT_VAL(eigenVectorsMin, float, 0, 0) = CV_MAT_VAL(eigenVectors, float, 1, 0);
-							CV_MAT_VAL(eigenVectorsMin, float, 0, 1) = CV_MAT_VAL(eigenVectors, float, 1, 1);
-						}
-						else {
-							CV_MAT_VAL(eigenVectorsMax, float, 0, 0) = CV_MAT_VAL(eigenVectors, float, 1, 0);
-							CV_MAT_VAL(eigenVectorsMax, float, 0, 1) = CV_MAT_VAL(eigenVectors, float, 1, 1);
-
-							CV_MAT_VAL(eigenVectorsMin, float, 0, 0) = CV_MAT_VAL(eigenVectors, float, 0, 0);
-							CV_MAT_VAL(eigenVectorsMin, float, 0, 1) = CV_MAT_VAL(eigenVectors, float, 0, 1);
-						}
-
-						for(i = 0; i < numPoints; ++i)
-						{
-							int x = ( (float*)(pcaData->data.ptr) )[i];
-							int y = ( (float*)(pcaData->data.ptr + pcaData->step) )[i];
-
-							cvLine(image, cvPoint(x,y), cvPoint(x,y), CV_RGB(255,0,0), 1);
-						}
-
-//						cvProjectPCA(pcaData, pcaAvg, eigenVectors, pcaProj );
-						cvProjectPCA(pcaData, pcaAvg, eigenVectorsMax, pcaProj );
-						
-//						cvBackProjectPCA( pcaProj, pcaAvg, eigenVectors, pcaResults);
-						cvBackProjectPCA( pcaProj, pcaAvg, eigenVectorsMax, pcaResults);
-
-						for(i = 0; i < numPoints; ++i)
-						{
-							int x = ( (float*)(pcaResults->data.ptr) )[i];
-							int y = ( (float*)(pcaResults->data.ptr + pcaResults->step) )[i];
-
-							cvLine(image, cvPoint(x,y), cvPoint(x,y), CV_RGB(0,0,255), 1);
-						}	
-
-//						cvProjectPCA(pcaData, pcaAvg, eigenVectors, pcaProj );
-						cvProjectPCA(pcaData, pcaAvg, eigenVectorsMin, pcaProj );
-						
-//						cvBackProjectPCA( pcaProj, pcaAvg, eigenVectors, pcaResults);
-						cvBackProjectPCA( pcaProj, pcaAvg, eigenVectorsMin, pcaResults);
-
-						for(i = 0; i < numPoints; ++i)
-						{
-							int x = ( (float*)(pcaResults->data.ptr) )[i];
-							int y = ( (float*)(pcaResults->data.ptr + pcaResults->step) )[i];
-
-							cvLine(image, cvPoint(x,y), cvPoint(x,y), CV_RGB(0,255,0), 1);
-						}	
-
-
-						cvReleaseMat(&pcaData);
-						cvReleaseMat(&pcaAvg);
-						cvReleaseMat(&eigenVectors);
-						cvReleaseMat(&eigenVectorsMax);
-						cvReleaseMat(&eigenVectorsMin);
-						cvReleaseMat(&eigenValues);
-						cvReleaseMat(&pcaProj);
-						cvReleaseMat(&pcaResults);
-					}
+					blob1.FillBlob( image, CV_RGB( 255, 0, 0 ));
+					blob2.FillBlob( image, CV_RGB( 0, 255, 0 ));
 				}
 
+				CvPoint centroid = cvPoint(blob2.MinX() + (( blob2.MaxX() - blob2.MinX() ) / 2.0), blob2.MinY() + (( blob2.MaxY() - blob2.MinY() ) / 2.0));
+
+				CvPoint a = cvPoint(blob2.MinX(), blob2.MinY());
+				CvPoint b = cvPoint(blob2.MaxX(), blob2.MaxY());
+
+				cvCircle(image, centroid, 4, CV_RGB(0,0,255), CV_FILLED);
+				cvRectangle(image, a, b, CV_RGB(0,0,255), 2, CV_AA);
 			}
 //			blobWithLessArea.FillBlob( image, CV_RGB( 0, 255, 0 ));
 
@@ -407,7 +368,8 @@ int main( int argc, char** argv )
 			float dXCenter = moments.m10 / moments.m00;
 			float dYCenter = moments.m01 / moments.m00;
 			cvCircle(image, cvPoint(dXCenter, dYCenter), 3, CV_RGB(0,255,255), CV_FILLED);
-        }
+#endif
+//        }
         
 		// Select window (exclusion) effect
         if( select_object && selection.width > 0 && selection.height > 0 )
@@ -416,6 +378,7 @@ int main( int argc, char** argv )
             cvXorS( image, cvScalarAll(255), image, 0 );
             cvResetImageROI( image );
         }
+
 
 		cvShowImage( "Colour Object", image);
         cvShowImage( "Back Projection", bp );
@@ -449,8 +412,14 @@ int main( int argc, char** argv )
 #ifndef CV_CAPTURE
 //		cvReleaseImage(&frame);
 				
-		if(c == 'r') images.reset();
-		if(c == ' ') start_frame_step ^= 1;
+		if(c == 'r') {
+			images.reset();
+			init = false;
+		}
+		if(c == ' ') {
+			start_frame_step ^= 1;
+			init = true;
+		}
 
 		last_frame = this_frame;
 
