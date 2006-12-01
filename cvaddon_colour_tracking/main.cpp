@@ -154,6 +154,9 @@ int main( int argc, char** argv )
 //	const char* IMAGE_NAME = "default070.bmp";		// Frame skip after 069 for some odd reason
 
 	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/white_50fps_scale/";
+//	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/edge_noise_back_new_50fps/";
+//	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/mixed_back_new_50fps/";
+
 	const char* IMAGE_NAME = "default000.bmp";		// Frame skip after 069 for some odd reason
 
 	CvAddonImageReader images(IMAGE_PATH, IMAGE_NAME);
@@ -295,6 +298,13 @@ int main( int argc, char** argv )
 						CvMat* pcaProj = cvCreateMat( numPoints, 1, CV_32F );
 						CvMat* pcaResults = cvCreateMat( 2, numPoints, CV_32F );
 
+						CvMat *imgCenter = cvCreateMat(2, 1, CV_32F);
+						CvMat* centerProj = cvCreateMat( 1, 1, CV_32F );
+						CvMat* centerResults = cvCreateMat( 2, 1, CV_32F );
+
+						CV_MAT_VAL(imgCenter, float, 0, 0) = ((float)image->width - 1.0f)/2.0f;
+						CV_MAT_VAL(imgCenter, float, 1, 0) = ((float)image->height - 1.0f)/2.0f;
+
 						int i;
 						for(i = 0; i < numPoints; ++i)
 						{
@@ -350,19 +360,28 @@ int main( int argc, char** argv )
 							cvLine(image, cvPoint(x,y), cvPoint(x,y), CV_RGB(0,0,255), 1);
 						}	
 
-//						cvProjectPCA(pcaData, pcaAvg, eigenVectors, pcaProj );
-						cvProjectPCA(pcaData, pcaAvg, eigenVectorsMin, pcaProj );
-						
-//						cvBackProjectPCA( pcaProj, pcaAvg, eigenVectors, pcaResults);
-						cvBackProjectPCA( pcaProj, pcaAvg, eigenVectorsMin, pcaResults);
+						// Projecting image center
+						cvProjectPCA(imgCenter, pcaAvg, eigenVectorsMax, centerProj );
+						cvBackProjectPCA( centerProj, pcaAvg, eigenVectorsMax, centerResults);
 
-						for(i = 0; i < numPoints; ++i)
-						{
-							int x = ( (float*)(pcaResults->data.ptr) )[i];
-							int y = ( (float*)(pcaResults->data.ptr + pcaResults->step) )[i];
+						int x = ( (float*)(centerResults->data.ptr) )[0];
+						int y = ( (float*)(centerResults->data.ptr + centerResults->step) )[0];
 
-							cvLine(image, cvPoint(x,y), cvPoint(x,y), CV_RGB(0,255,0), 1);
-						}	
+						cvCircle(image, cvPoint(x,y), 3, CV_RGB(0,255,0), CV_FILLED);
+
+////						cvProjectPCA(pcaData, pcaAvg, eigenVectors, pcaProj );
+//						cvProjectPCA(pcaData, pcaAvg, eigenVectorsMin, pcaProj );
+//						
+////						cvBackProjectPCA( pcaProj, pcaAvg, eigenVectors, pcaResults);
+//						cvBackProjectPCA( pcaProj, pcaAvg, eigenVectorsMin, pcaResults);
+//
+//						for(i = 0; i < numPoints; ++i)
+//						{
+//							int x = ( (float*)(pcaResults->data.ptr) )[i];
+//							int y = ( (float*)(pcaResults->data.ptr + pcaResults->step) )[i];
+//
+//							cvLine(image, cvPoint(x,y), cvPoint(x,y), CV_RGB(0,255,0), 1);
+//						}	
 
 
 						cvReleaseMat(&pcaData);
@@ -373,6 +392,7 @@ int main( int argc, char** argv )
 						cvReleaseMat(&eigenValues);
 						cvReleaseMat(&pcaProj);
 						cvReleaseMat(&pcaResults);
+						cvReleaseMat(&imgCenter);
 					}
 				}
 
@@ -401,12 +421,15 @@ int main( int argc, char** argv )
 				cvCircle(image, cvPointFrom32f(track_box.center), 4, CV_RGB(0,255,0), CV_FILLED);
 			}
 
-			// Center of Gravity
-			CvMoments moments;
-			cvMoments(bp, &moments, 0);
-			float dXCenter = moments.m10 / moments.m00;
-			float dYCenter = moments.m01 / moments.m00;
-			cvCircle(image, cvPoint(dXCenter, dYCenter), 3, CV_RGB(0,255,255), CV_FILLED);
+//			// Center of Gravity
+//			CvMoments moments;
+//			cvMoments(bp, &moments, 0);
+//			float dXCenter = moments.m10 / moments.m00;
+//			float dYCenter = moments.m01 / moments.m00;
+
+			
+
+			cvCircle(image, cvPointFrom32f( findCentroid(bp) ), 3, CV_RGB(0,0,0), CV_FILLED);
         }
         
 		// Select window (exclusion) effect

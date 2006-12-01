@@ -1,23 +1,12 @@
-// Tracks the two pieces of green tape above and below 
-// an object to get ground truth
-
-// HSV colour tracker, uses Hue and Saturation
-// histograms. Value (V in HSV) is used to reject
-// pixels near the central axis of the HSV cone
-// (~= singularity)
-//
-// The code provides the following tracking modes, all run in parallel
-// 1) Camshift tracking (see camshiftdemo.cpp in OpenCV samples)
-// 2) Centroid of each frame using cvMoments (no temporal smoothing)
-//
-// All of the above uses the back projection image as 
-// input, so make sure it is reasonably clean and noise-free
-//
-// Based loosely on camshiftdemo of OpenCV 1.0
+// Tracks two markers above and below 
+// an object to get a ground truth symmetry line
 // Code by Wai Ho Li
+//
+//This code was hacked up in a couple of hours and very, very messy.
+//As one of the sequences (new_mixed_50fps) had a specularly reflective
+//marker (blue electrical tape), the code was ran twice on the object 
+//to get both markers. 
 
-// Uncomment to use webcam (or avi video) as input
-//#define CV_CAPTURE
 
 #include "cv.h"
 #include "highgui.h"
@@ -35,6 +24,12 @@
 #include <iostream>
 using std::cerr;
 using std::endl;
+
+#include <fstream>
+using std::ofstream;
+
+#include <string>
+using std::string;
 
 IplImage *image = 0, *hsv = 0, *hue = 0, *mask = 0, *backproject = 0, *histImg = 0, *HSV = 0;
 CvHistogram *hist = 0;
@@ -54,18 +49,41 @@ int show_blob = 0;
 int show_camshift = 0;
 
 // Pauses frame progress when using image sequence
-#ifndef CV_CAPTURE
-	int start_frame_step = 0;
-	int last_frame = -1, this_frame = 0;
-#endif
+int start_frame_step = 0;
+int last_frame = -1, this_frame = 0;
 
-// Default trackbar values (for green tape, white_back_50fps)
-int vmin = 69, vmax = 140;
-int smin = 10, smax = 50;
-int hmin = 30, hmax = 130;
+// DOESNT WORK WELL
+//// Default trackbar values (for green tape, white_back_50fps)
+//int vmin = 79, vmax = 135;
+//int smin = 5, smax = 80;
+//int hmin = 30, hmax = 150;
 
-// Constants
-const float HIST_BLEND_ALPHA = 0.2f;
+// Default trackbar values (for blue tape, white_50fps_scale)
+int vmin = 28, vmax = 120;
+int smin = 10, smax = 113;
+int hmin = 70, hmax = 135;
+
+//// Default trackbar values (for blue tape, red_back_new_50fps)
+//int vmin = 35, vmax = 120;
+//int smin = 10, smax = 110;
+//int hmin = 75, hmax = 175;
+
+//// Default trackbar values (for blue tape, edge_noise_back_new_50fps)
+//int vmin = 36, vmax = 100;
+//int smin = 22, smax = 100;
+//int hmin = 85, hmax = 155;
+
+//// Default trackbar values (for TOP blue tape, mixed_back_new_50fps)
+//int vmin = 17, vmax = 100;
+//int smin = 15, smax = 118;
+//int hmin = 70, hmax = 165;
+
+//// Default trackbar values (for BOTTOM black blob (weights), mixed_back_new_50fps)
+//// Blue tape swinging too fast, and specularly reflective at times...
+//int vmin = 0, vmax = 53;
+//int smin = 0, smax = 256;
+//int hmin = 0, hmax = 180;
+
 
 void mouseCB( int event, int x, int y, int flags, void* param )
 {
@@ -128,40 +146,22 @@ int main( int argc, char** argv )
 {
 	IplImage* frame = 0;
     
-#ifdef CV_CAPTURE
-	CvCapture* capture = 0;
-    if( argc == 1 || (argc == 2 && strlen(argv[1]) == 1 && isdigit(argv[1][0])))
-        capture = cvCaptureFromCAM( argc == 2 ? argv[1][0] - '0' : 0 );
-    else if( argc == 2 )
-        capture = cvCaptureFromAVI( argv[1] ); 
+	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/white_50fps_scale/";
+	const char* IMAGE_NAME = "default000.bmp";
+	const char *LOG_NAME = "ground_truth.txt";
 
-    if( !capture )
-    {
-        fprintf(stderr,"Could not initialize capturing...\n");
-        return -1;
-    }
-
-	frame = cvQueryFrame( capture );
-	if(!frame) {
-		cerr << "Couldn't get video frame!!!" << endl;
-		exit(1);
-	}
-#else
-
-	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/white_back_50fps/";
-
-//	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/noise_back_50fps/";
-//	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/mixed_back_50fps/";
-//	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/red_back_50fps/";
-	const char* IMAGE_NAME = "default070.bmp";		// Frame skip after 069 for some odd reason
-//	const char* TAPE_IMAGE_NAME = "green_tape.bmp";		// Frame skip after 069 for some odd reason	
-//	
-//	CvAddonImageReader tape(IMAGE_PATH, TAPE_IMAGE_NAME);
 	CvAddonImageReader images(IMAGE_PATH, IMAGE_NAME);
 
 	frame = images.load();
-#endif
 
+	string logName = string(IMAGE_PATH) + "/" + string(LOG_NAME);
+	ofstream logFile;
+	logFile.open(logName.c_str());
+
+	if(!logFile.is_open()) {
+		cerr << "Couldn't open Log file. Exiting..." << endl;
+		exit(1);
+	}
     cerr << "Hot Keys: " << "\n";
 	cerr << "\t" << "Quit - ESC or q" << endl;
 	cerr << "\t" << "Start/Pause frame stepping (image sequence only) - SPACEBAR" << endl;
@@ -197,6 +197,9 @@ int main( int argc, char** argv )
 	S = cvCreateImage( imgSize, IPL_DEPTH_8U, 1);
 	V = cvCreateImage( imgSize, IPL_DEPTH_8U, 1);
 	HSV = cvCreateImage( imgSize, IPL_DEPTH_8U, 3);
+
+	IplImage *blob1Img = cvCreateImage( imgSize, IPL_DEPTH_8U, 1);
+	IplImage *blob2Img = cvCreateImage( imgSize, IPL_DEPTH_8U, 1);
 	
 	// My own hsv filter
 	CvAddonHSVFilter hsvFilter(45, 8);
@@ -213,53 +216,19 @@ int main( int argc, char** argv )
     {
         int c;
 
-#ifdef CV_CAPTURE
-        frame = cvQueryFrame( capture );
-#else
-//		if(!init) {
-//			frame = tape.load();
-//		}
-//		else 
 		if(this_frame != last_frame) {
 			cvReleaseImage(&frame);
 			frame = images.load();
 			this_frame = images.number();
 		}
-#endif
         if( !frame ) break;
 
 		image->origin = frame->origin;
         cvCopy( frame, image, 0 );
        
-//        if( track_object )
-//        {
             int _vmin = vmin, _vmax = vmax;
 			int _smin = smin, _smax = smax;
 			int _hmin = hmin, _hmax = hmax;
-
-//            if( track_object < 0 )
-//            {
-////                float max_val = 0.f;
-//                cvSetImageROI( image, selection );
-//                cvSetImageROI( H, selection );
-//				cvSetImageROI( S, selection );
-//				cvSetImageROI( V, selection );
-//
-//				if(blend_hist)
-//					hsvFilter.blendHist(image, H, S, V, CV_HSV(-1, _smin, _vmin), CV_HSV(256, 256, _vmax), NULL, HIST_BLEND_ALPHA );
-//				else
-//					hsvFilter.buildHist(image, H, S, V, CV_HSV(-1, _smin, _vmin), CV_HSV(256, 256, _vmax) );
-//                
-//                cvResetImageROI(image);
-//                cvResetImageROI(H);
-//				cvResetImageROI(S);
-//				cvResetImageROI(V);
-//
-//                track_window = selection;
-//                track_object = 1;
-//
-//				hsvFilter.drawHist(histImg);
-//            }
 
 			cvZero(bp);
 			bp->origin = image->origin;
@@ -274,103 +243,88 @@ int main( int argc, char** argv )
 //			cvInRangeS(image, lower, upper, V);
 
 
+//			CvScalar maskColor = CV_RGB(128,128,128);
 			CvScalar maskColor = CV_RGB(0,0,0);
+
 //			cvRectangle(V, cvPoint(0,0), cvPoint(132, imgSize.height-1), maskColor, CV_FILLED);
-//			cvRectangle(V, cvPoint(imgSize.width-1-100,0), cvPoint(imgSize.width-1, imgSize.height-1), maskColor, CV_FILLED);
-			cvRectangle(V, cvPoint(0,0), cvPoint(imgSize.width-1, 80), maskColor, CV_FILLED);
+			
+			// For red_back_new_50fps & mixed_back_new_50fps
+			cvRectangle(V, cvPoint(imgSize.width-1-50,0), cvPoint(imgSize.width-1, imgSize.height-1), maskColor, CV_FILLED);
+
+//			//for mixed_back_new_50fps
+			cvRectangle(V, cvPoint(0,imgSize.height-1), cvPoint(imgSize.width-1, imgSize.height-1-50), maskColor, CV_FILLED);
+			cvRectangle(V, cvPoint(0,0), cvPoint(55, imgSize.height), maskColor, CV_FILLED);
+
+//			cvRectangle(V, cvPoint(307,imgSize.height-1 - 42), cvPoint(310, imgSize.height-1 - 26), maskColor, CV_FILLED);
+
+//			cvRectangle(V, cvPoint(390,imgSize.height-1), cvPoint(410, imgSize.height-1 - 50), maskColor, CV_FILLED);
+			
 
 			cvSmooth(V, bp, CV_MEDIAN, 5, 5);
 			
 
 			if(show_blob) {
-				blobs = CBlobResult( bp, NULL, 25, true );
+				blobs = CBlobResult( bp, NULL, 20, true );
 				
 				// ( the criteria to filter can be any class derived from COperadorBlob ) 
-				blobs.Filter( blobs, B_INCLUDE, CBlobGetArea(), B_GREATER, 10);
+				blobs.Filter( blobs, B_INCLUDE, CBlobGetArea(), B_GREATER, 30);
 
 				// from the filtered blobs, get the blob with biggest perimeter
 				blobs.GetNthBlob( CBlobGetArea(), 0, blob0 );
-				blobs.GetNthBlob( CBlobGetArea(), 1, blob1 );
-				blobs.GetNthBlob( CBlobGetArea(), 2, blob2 );
+				blobs.GetNthBlob( CBlobGetMaxY(), 1, blob1 );
+
+
+				blobs.GetNthBlob( CBlobGetMaxY(), blobs.GetNumBlobs()-1, blob2 );
+	
+				if(blob2.Area() < 50) { blobs.GetNthBlob( CBlobGetMaxY(), blobs.GetNumBlobs()-2, blob2 ); }
+
 				if(blobs.GetNumBlobs() >= 3) {
-					if(blob1.MinY() < blob2.MinY()) { 
-						blob1.FillBlob( image, CV_RGB( 255, 0, 0 ));
-						blob2.FillBlob( image, CV_RGB( 0, 255, 0 ));
-					}
-					else {
-						blob1.FillBlob( image, CV_RGB( 0, 255, 0 ));
-						blob2.FillBlob( image, CV_RGB( 255, 0, 0 ));
-					}
 					blob0.FillBlob( image, CV_RGB( 0, 0, 255 ));
+
+					blob1.FillBlob( image, CV_RGB(0,255,0));
+
+					blob2.FillBlob( image, CV_RGB(255,0,0));
+					
+//					if(blob1.MinY() < 200) {
+//						cerr << "WTF?" << endl;
+//						start_frame_step = 0;
+//					}
+
+
+					cvZero(blob1Img);
+					cvZero(blob2Img);
+					blob1.FillBlob( blob1Img, CV_RGB(255,255,255));
+					blob2.FillBlob( blob2Img, CV_RGB(255,255,255));
+
+					logFile << images.number() << "\t";
+
+					// Center of Gravity
+					CvMoments moments;
+					float dXCenter;
+					float dYCenter;
+
+					cvMoments(blob1Img, &moments, 0);
+					dXCenter = moments.m10 / moments.m00;
+					dYCenter = moments.m01 / moments.m00;
+
+					logFile << dXCenter << "\t" << dYCenter << "\t";
+					cvCircle(image, cvPoint(dXCenter, dYCenter), 3, CV_RGB(0,0,0) , CV_FILLED);
+
+					cvMoments(blob2Img, &moments, 0);
+					dXCenter = moments.m10 / moments.m00;
+					dYCenter = moments.m01 / moments.m00;
+
+					logFile << dXCenter << "\t" << dYCenter << "\t";
+					cvCircle(image, cvPoint(dXCenter, dYCenter), 3, CV_RGB(0,0,0) , CV_FILLED);					
+
+					logFile << endl;
 				}
 				else {
 					start_frame_step = 0;
 				}
 			}
 
-#ifdef _LOL_
-
-//			hsvFilter.backProject(image, H, S, V, bp, CV_HSV(-1,_smin, _vmin), CV_HSV(256, 256, _vmax) );
-
-			// Extract the blobs using a threshold of 100 in the image
-			blobs = CBlobResult( bp, NULL, 25, true );
-
-			// ( the criteria to filter can be any class derived from COperadorBlob ) 
-			blobs.Filter( blobs, B_INCLUDE, CBlobGetArea(), B_GREATER, 500 );
-
-
-			// from the filtered blobs, get the blob with biggest perimeter
-			blobs.GetNthBlob( CBlobGetArea(), 0, blob1 );
-			blobs.GetNthBlob( CBlobGetArea(), 1, blob2 );
-
-			// plot the selected blobs in a output image
-			if(show_blob) {
-				if(blobs.GetNumBlobs() >= 2) {
-					blob1.FillBlob( image, CV_RGB( 255, 0, 0 ));
-					blob2.FillBlob( image, CV_RGB( 0, 255, 0 ));
-				}
-
-				CvPoint centroid = cvPoint(blob2.MinX() + (( blob2.MaxX() - blob2.MinX() ) / 2.0), blob2.MinY() + (( blob2.MaxY() - blob2.MinY() ) / 2.0));
-
-				CvPoint a = cvPoint(blob2.MinX(), blob2.MinY());
-				CvPoint b = cvPoint(blob2.MaxX(), blob2.MaxY());
-
-				cvCircle(image, centroid, 4, CV_RGB(0,0,255), CV_FILLED);
-				cvRectangle(image, a, b, CV_RGB(0,0,255), 2, CV_AA);
-			}
-//			blobWithLessArea.FillBlob( image, CV_RGB( 0, 255, 0 ));
-
-
-
-//            cvCalcBackProject( &hue, backproject, hist );
-//            cvAnd( backproject, mask, backproject, 0 );
-            
-			cvCamShift( bp, track_window,
-                        cvTermCriteria( CV_TERMCRIT_EPS | CV_TERMCRIT_ITER, 10, 1 ),
-                        &track_comp, &track_box );
-            track_window = track_comp.rect;
-            
-//            if( backproject_mode )
-//                cvCvtColor( backproject, image, CV_GRAY2BGR );
-            if( image->origin )
-                track_box.angle = -track_box.angle;
-
-			if(show_camshift) {
-				// TODO: Bugs out if colour object disappears off the screen quickly 
-				// as it tries to draw outside the window (very rare) 
-				cvEllipseBox( image, track_box, CV_RGB(0,255,0), 3, CV_AA, 0 );
-				cvCircle(image, cvPointFrom32f(track_box.center), 4, CV_RGB(0,255,0), CV_FILLED);
-			}
-
-			// Center of Gravity
-			CvMoments moments;
-			cvMoments(bp, &moments, 0);
-			float dXCenter = moments.m10 / moments.m00;
-			float dYCenter = moments.m01 / moments.m00;
-			cvCircle(image, cvPoint(dXCenter, dYCenter), 3, CV_RGB(0,255,255), CV_FILLED);
-#endif
-//        }
-        
+  
 		// Select window (exclusion) effect
         if( select_object && selection.width > 0 && selection.height > 0 )
         {
@@ -381,6 +335,9 @@ int main( int argc, char** argv )
 
 
 		cvShowImage( "Colour Object", image);
+
+
+
         cvShowImage( "Back Projection", bp );
         cvShowImage( "HSV Histogram", histImg );
 
@@ -409,8 +366,6 @@ int main( int argc, char** argv )
         }
 
 // Image Sequence input
-#ifndef CV_CAPTURE
-//		cvReleaseImage(&frame);
 				
 		if(c == 'r') {
 			images.reset();
@@ -418,6 +373,7 @@ int main( int argc, char** argv )
 		}
 		if(c == ' ') {
 			start_frame_step ^= 1;
+//			images.next();			
 			init = true;
 		}
 
@@ -427,12 +383,8 @@ int main( int argc, char** argv )
 			images.next();
 
 		this_frame = images.number();
-#endif
 	}
-
-#ifdef CV_CAPTURE
-    cvReleaseCapture( &capture );
-#endif
+	logFile.close();
 
     cvDestroyWindow("Back Projection");
     return 0;

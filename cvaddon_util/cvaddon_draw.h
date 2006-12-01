@@ -19,6 +19,7 @@
 
 
 #include <cv.h>
+#include "cvaddon_math.h"
 
 // OpenCv doesnt have a function to draw Rectangles. Go figure...
 inline void cvAddonDrawRectangle(CvArr *img, const CvRect& rect
@@ -77,80 +78,9 @@ inline void cvAddonDrawPixels(IplImage *dst, CvPoint *pixels
 }
 
 
+
 // Draws a straight line defined in polar form relative to the 
 // center of the image <dst>
-inline void cvAddonFindPolarLineEndPoints(CvSize size, const float &r, const float &theta
-										  , CvPoint &xrPt, CvPoint &p0, CvPoint &p1)
-{
-	int i;
-	float c_x, c_y;	// Image center
-	
-	float r_x, r_y;	// r components in x and y
-	float x_r, y_r;	// point where r interects polar line
-	float sin_th, cos_th;
-
-	float d[4];		// dist to closest image boundary
-	float min_d;	// MIN(d)
-		
-
-	c_x = (float)(size.width - 1) / 2.0f;
-	c_y = (float)(size.height - 1) / 2.0f;
-
-	cos_th = cosf(theta);
-	sin_th = sinf(theta);
-
-	r_x = r*cos_th;
-	r_y = r*sin_th;
-
-	x_r = c_x + r_x;
-	y_r = c_y + r_y;
-	
-	// Finding closest border, so we can find line's end points
-	if(sin_th != 0) {
-		d[0] = x_r / sin_th;
-		d[1] = (x_r - (float)size.width + 1) / sin_th;
-	}
-	if(cos_th != 0) {
-		d[2] = -y_r / cos_th; 
-		d[3] = ((float)size.height - 1 - y_r) / cos_th;
-	}
-
-	min_d = fabsf(d[0]);
-	for(i = 1; i < 4; ++i)
-	{
-		float dist = d[i];
-		if(dist < min_d && dist > 0 || min_d < 0) min_d = dist;
-	}
-	min_d -= 2;
-
-	p0 = cvPoint(-min_d * sin_th + x_r, min_d * cos_th + y_r);
-
-
-	if(sin_th != 0) {
-		d[0] = -x_r / sin_th;
-		d[1] = ((float)size.width - x_r - 1) / sin_th;
-	}
-	if(cos_th != 0) {
-		d[2] = y_r / cos_th;
-		d[3] = (1 + y_r - (float)size.height) / cos_th;
-	}
-
-	min_d = fabsf(d[0]);
-	for(i = 1; i < 4; ++i)
-	{
-		float dist = d[i];
-		if(dist < min_d && dist > 0 || min_d < 0) min_d = dist;
-	}
-	min_d -= 2;
-
-	p1 = cvPoint(min_d * sin_th + x_r, -min_d * cos_th + y_r);
-	
-	xrPt = cvPoint( x_r, y_r);
-
-
-}
-
-
 inline void cvAddonDrawPolarLine(IplImage *dst, const float &r, const float &theta
 	, const CvScalar &color, const int &thickness = 1)
 {

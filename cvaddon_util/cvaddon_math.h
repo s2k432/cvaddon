@@ -14,11 +14,14 @@
 ////////////////////////////////////////////////////////////
 // TODO
 // ---
+// Error checks
+//
 // DOC issues:
 // Check and reject bad hessians? (abs(shift) > 1 etc)
 ////////////////////////////////////////////////////////////
-
+#include <cxcore.h>
 #include <cv.h>
+
 #include <iostream>
 using std::endl;
 using std::cerr;
@@ -26,6 +29,14 @@ using std::cerr;
 #define CV_MAT_VAL(mat, type, row, col) \
 	( ((type*)( (mat)->data.ptr + (mat)->step* (row) ))[ (col) ] )
 
+
+// Finds centroid of grayscale single channel image
+inline CvPoint2D32f findCentroid(const IplImage *src)
+{
+	CvMoments moments;
+	cvMoments(src, &moments, 0);
+	return cvPoint2D32f(moments.m10 / moments.m00, moments.m01 / moments.m00);
+}
 
 // Orders two scalars such that their elements are placed into a 
 // lower and upper resulting scalar
@@ -42,6 +53,144 @@ inline void lowerUpper(const CvScalar& a, const CvScalar& b, CvScalar& lower, Cv
 			lower.val[i] = a.val[i];
 			upper.val[i] = b.val[i];
 		}
+	}
+}
+
+// Output:
+// <xrPt> - point where r interects polar line
+// <p0>, <p1> - End points of polar line
+inline void cvAddonFindPolarLineEndPoints(const CvSize &size, const float &r, const float &theta
+										  , CvPoint &xrPt, CvPoint &p0, CvPoint &p1)
+{
+	int i;
+	float c_x, c_y;	// Image center
+	
+	float r_x, r_y;	// r components in x and y
+	float x_r, y_r;	// point where r interects polar line
+	float sin_th, cos_th;
+
+	float d[4];		// dist to closest image boundary
+	float min_d;	// MIN(d)
+		
+
+	c_x = (float)(size.width - 1) / 2.0f;
+	c_y = (float)(size.height - 1) / 2.0f;
+
+	cos_th = cosf(theta);
+	sin_th = sinf(theta);
+
+	r_x = r*cos_th;
+	r_y = r*sin_th;
+
+	x_r = c_x + r_x;
+	y_r = c_y + r_y;
+	
+	// Finding closest border, so we can find line's end points
+	if(sin_th != 0) {
+		d[0] = x_r / sin_th;
+		d[1] = (x_r - (float)size.width + 1) / sin_th;
+	}
+	if(cos_th != 0) {
+		d[2] = -y_r / cos_th; 
+		d[3] = ((float)size.height - 1 - y_r) / cos_th;
+	}
+
+	min_d = fabsf(d[0]);
+	for(i = 1; i < 4; ++i)
+	{
+		float dist = d[i];
+		if(dist < min_d && dist > 0 || min_d < 0) min_d = dist;
+	}
+	min_d -= 2;
+
+	p0 = cvPoint( cvRound(-min_d * sin_th + x_r), cvRound(min_d * cos_th + y_r) );
+
+
+	if(sin_th != 0) {
+		d[0] = -x_r / sin_th;
+		d[1] = ((float)size.width - x_r - 1) / sin_th;
+	}
+	if(cos_th != 0) {
+		d[2] = y_r / cos_th;
+		d[3] = (1 + y_r - (float)size.height) / cos_th;
+	}
+
+	min_d = fabsf(d[0]);
+	for(i = 1; i < 4; ++i)
+	{
+		float dist = d[i];
+		if(dist < min_d && dist > 0 || min_d < 0) min_d = dist;
+	}
+	min_d -= 2;
+
+	p1 = cvPoint( cvRound(min_d * sin_th + x_r), cvRound(-min_d * cos_th + y_r) );
+	
+	xrPt = cvPoint( cvRound(x_r), cvRound(y_r));
+}
+
+
+inline void cvAddonFindPolarLineFromEndPoints(const CvPoint2D32f &origin
+	, const CvPoint2D32f &p0, const CvPoint2D32f &p1, float &r, float &theta)
+{
+	float dx, dy;
+	CvPoint2D32f a,b, ro, d, du;
+	float b_dot_du, d_norm;
+
+	a = cvPoint2D32f(p0.x - origin.x, p0.y - origin.y);
+	b = cvPoint2D32f(p1.x - origin.x, p1.y - origin.y);
+
+	d.x = b.x - a.x;
+	d.y = b.y - a.y;
+
+	d_norm = sqrtf(d.x*d.x + d.y*d.y);
+	du.x = d.x / d_norm;
+	du.y = d.y / d_norm;
+	
+	// Dot product: p1 . d
+	b_dot_du = (du.x*b.x + du.y*b.y);
+
+	// 
+	ro.x = b.x - b_dot_du * du.x;
+	ro.y = b.y - b_dot_du * du.y;
+	
+	r = sqrtf( ro.x*ro.x + ro.y*ro.y );
+
+	theta = atan2f(ro.y, ro.x);	
+
+	// Wrapping theta to +- pi/2
+	if(theta > CV_PI / 2) {
+		theta -= CV_PI;
+		r *= -1;
+	}
+	if(theta < -CV_PI / 2) {
+		theta += CV_PI;
+		r *= -1;
+	}
+}
+
+
+// The "pivot" is the point that when connected to the origin will form
+// a line perpendicular to (T-junction) the line described by {r, theta}.
+inline void cvAddonFindPolarLineFromPivot(const CvPoint2D32f &origin
+	, const CvPoint2D32f &pivot, float &r, float &theta)
+{
+	CvPoint2D32f ro;
+
+	ro.x = pivot.x - origin.x;
+	ro.y = pivot.y - origin.y;
+	
+	r = sqrtf( ro.x*ro.x + ro.y*ro.y );
+
+	theta = atan2f(ro.y, ro.x);	
+
+	// Wrapping theta to +- pi/2
+	if(theta > CV_PI / 2) {
+		theta -= CV_PI;
+		r *= -1;
+	}
+	if(theta < -CV_PI / 2) {
+		theta += CV_PI;
+		r *= -1;
 	}
 }
 

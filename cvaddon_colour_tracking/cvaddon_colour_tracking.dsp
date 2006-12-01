@@ -96,6 +96,26 @@ SOURCE=..\cvaddon_colour\cvaddon_hsv_filter.cpp
 # Begin Source File
 
 SOURCE=.\main.cpp
+
+!IF  "$(CFG)" == "cvaddon_colour_tracking - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "cvaddon_colour_tracking - Win32 Debug"
+
+!ENDIF 
+
+# End Source File
+# Begin Source File
+
+SOURCE=.\main_display_results.cpp
+
+!IF  "$(CFG)" == "cvaddon_colour_tracking - Win32 Release"
+
+!ELSEIF  "$(CFG)" == "cvaddon_colour_tracking - Win32 Debug"
+
+# PROP Exclude_From_Build 1
+
+!ENDIF 
+
 # End Source File
 # Begin Source File
 
