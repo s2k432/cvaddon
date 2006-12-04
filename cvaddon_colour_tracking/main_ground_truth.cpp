@@ -52,16 +52,15 @@ int show_camshift = 0;
 int start_frame_step = 0;
 int last_frame = -1, this_frame = 0;
 
-// DOESNT WORK WELL
 //// Default trackbar values (for green tape, white_back_50fps)
-//int vmin = 79, vmax = 135;
-//int smin = 5, smax = 80;
-//int hmin = 30, hmax = 150;
+//int vmin = 65, vmax = 135;
+//int smin = 5, smax = 110;
+//int hmin = 27, hmax = 145;
 
-// Default trackbar values (for blue tape, white_50fps_scale)
-int vmin = 28, vmax = 120;
-int smin = 10, smax = 113;
-int hmin = 70, hmax = 135;
+//// Default trackbar values (for blue tape, white_50fps_scale)
+//int vmin = 28, vmax = 120;
+//int smin = 10, smax = 113;
+//int hmin = 70, hmax = 135;
 
 //// Default trackbar values (for blue tape, red_back_new_50fps)
 //int vmin = 35, vmax = 120;
@@ -73,11 +72,18 @@ int hmin = 70, hmax = 135;
 //int smin = 22, smax = 100;
 //int hmin = 85, hmax = 155;
 
-//// Default trackbar values (for TOP blue tape, mixed_back_new_50fps)
-//int vmin = 17, vmax = 100;
-//int smin = 15, smax = 118;
-//int hmin = 70, hmax = 165;
+//// Default trackbar values (for BOTTOM blue tape, mixed_back_new_50fps)
+//int vmin = 17, vmax = 120;
+//int smin = 15, smax = 75;
+//int hmin = 70, hmax = 178;
 
+//// Default trackbar values (for TOP blue tape, mixed_back_new_50fps)
+//int vmin = 17, vmax = 120;
+//int smin = 15, smax = 75;
+//int hmin = 70, hmax = 130;
+
+
+// This makes the resulting sym line offcenter (leans a bit to the right)
 //// Default trackbar values (for BOTTOM black blob (weights), mixed_back_new_50fps)
 //// Blue tape swinging too fast, and specularly reflective at times...
 //int vmin = 0, vmax = 53;
@@ -146,8 +152,12 @@ int main( int argc, char** argv )
 {
 	IplImage* frame = 0;
     
-	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/white_50fps_scale/";
+	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/mixed_back_new_50fps/";
 	const char* IMAGE_NAME = "default000.bmp";
+	
+//	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/white_back_50fps/";
+//	const char* IMAGE_NAME = "default070.bmp";
+	
 	const char *LOG_NAME = "ground_truth.txt";
 
 	CvAddonImageReader images(IMAGE_PATH, IMAGE_NAME);
@@ -252,12 +262,12 @@ int main( int argc, char** argv )
 			cvRectangle(V, cvPoint(imgSize.width-1-50,0), cvPoint(imgSize.width-1, imgSize.height-1), maskColor, CV_FILLED);
 
 //			//for mixed_back_new_50fps
-			cvRectangle(V, cvPoint(0,imgSize.height-1), cvPoint(imgSize.width-1, imgSize.height-1-50), maskColor, CV_FILLED);
+			cvRectangle(V, cvPoint(0,imgSize.height-1), cvPoint(imgSize.width-1, imgSize.height-1-30), maskColor, CV_FILLED);
 			cvRectangle(V, cvPoint(0,0), cvPoint(55, imgSize.height), maskColor, CV_FILLED);
 
-//			cvRectangle(V, cvPoint(307,imgSize.height-1 - 42), cvPoint(310, imgSize.height-1 - 26), maskColor, CV_FILLED);
+//			// For white_back (with green tape)
+//			cvRectangle(V, cvPoint(0,0), cvPoint(imgSize.width-1, 65), maskColor, CV_FILLED);
 
-//			cvRectangle(V, cvPoint(390,imgSize.height-1), cvPoint(410, imgSize.height-1 - 50), maskColor, CV_FILLED);
 			
 
 			cvSmooth(V, bp, CV_MEDIAN, 5, 5);
@@ -307,8 +317,8 @@ int main( int argc, char** argv )
 					dXCenter = moments.m10 / moments.m00;
 					dYCenter = moments.m01 / moments.m00;
 
-					logFile << dXCenter << "\t" << dYCenter << "\t";
-					cvCircle(image, cvPoint(dXCenter, dYCenter), 3, CV_RGB(0,0,0) , CV_FILLED);
+//					logFile << dXCenter << "\t" << dYCenter << "\t";
+//					cvCircle(image, cvPoint(dXCenter, dYCenter), 3, CV_RGB(0,0,0) , CV_FILLED);
 
 					cvMoments(blob2Img, &moments, 0);
 					dXCenter = moments.m10 / moments.m00;

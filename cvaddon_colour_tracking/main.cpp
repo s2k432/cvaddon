@@ -16,6 +16,10 @@
 // Uncomment to use webcam (or avi video) as input
 //#define CV_CAPTURE
 
+// Uncomment to write results to text files in 
+// IMAGE_PATH
+#define WRITE_TRACKING_RESULTS_TO_FILES
+
 #include "cv.h"
 #include "highgui.h"
 
@@ -34,11 +38,19 @@
 
 #include "cvaddon_math.h"
 
+// Block-based motion detection
+#include "cvaddon_block_motion.h"
+
 #include <iostream>
 using std::cerr;
 using std::endl;
 
-IplImage *image = 0, *hsv = 0, *hue = 0, *mask = 0, *backproject = 0, *histImg = 0;
+#include <fstream>
+using std::ofstream;
+
+IplImage *image = 0, *imageOld = 0, *hsv = 0, *hue = 0;
+IplImage *diff, *motionMask;
+IplImage *mask = 0, *backproject = 0, *histImg = 0;
 CvHistogram *hist = 0;
 
 int select_object = 0;
@@ -148,20 +160,22 @@ int main( int argc, char** argv )
 	}
 #else
 //	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/white_back_50fps/";
-//	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/noise_back_50fps/";
-//	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/mixed_back_50fps/";
-//	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/red_back_50fps/";
-//	const char* IMAGE_NAME = "default070.bmp";		// Frame skip after 069 for some odd reason
+//	const char* IMAGE_NAME = "default070.bmp";		// Frames overwritten (1001 ==>0001 etc..) until ~069
 
-	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/white_50fps_scale/";
-//	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/edge_noise_back_new_50fps/";
+	// Needs motionMask	
 //	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/mixed_back_new_50fps/";
+	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/red_back_new_50fps/";
 
+//	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/edge_noise_back_new_50fps/";
 	const char* IMAGE_NAME = "default000.bmp";		// Frame skip after 069 for some odd reason
 
 	CvAddonImageReader images(IMAGE_PATH, IMAGE_NAME);
 
 	frame = images.load();
+#endif
+
+#ifdef WRITE_TRACKING_RESULTS_TO_FILES
+	ofstream pcaFile( (string(IMAGE_PATH) + "/" + "pca_axis.txt").c_str() ); 
 #endif
 
     cerr << "Hot Keys: " << "\n";
@@ -175,6 +189,7 @@ int main( int argc, char** argv )
     cvNamedWindow( "HSV Histogram", 1 );
     cvNamedWindow( "Colour Object", 1 );
 	cvNamedWindow( "Back Projection", 1 );
+	cvNamedWindow( "Motion", 1 );
 
     cvSetMouseCallback( "Colour Object", mouseCB, 0 );
     cvCreateTrackbar( "Vmin", "Back Projection", &vmin, 256, 0 );
@@ -185,6 +200,11 @@ int main( int argc, char** argv )
 
 	CvSize imgSize = cvGetSize(frame);
     image = cvCreateImage( imgSize, IPL_DEPTH_8U, 3 );
+	imageOld = cvCreateImage( imgSize, IPL_DEPTH_8U, 3 );
+	cvZero(imageOld);
+
+	CvPoint2D32f imgOrigin = cvPoint2D32f( 
+		((float)imgSize.width - 1.0f) / 2.0f, ((float)imgSize.height - 1.0f) / 2.0f);
 
 	// HSV Filtering
 	IplImage *H, *S, *V, *bp, *mask;
@@ -204,6 +224,12 @@ int main( int argc, char** argv )
 	CBlob blob1;
 	CBlob blob2;
 
+	// Block Motion
+	CvAddonBlockMotionDetector blockMotion(imgSize, 8);
+	CvRect boundingRect;
+	diff = cvCreateImage( imgSize, IPL_DEPTH_8U, 1);
+	motionMask = cvCreateImage( imgSize, IPL_DEPTH_8U, 1 );
+
     for(;;)
     {
         int c;
@@ -221,7 +247,18 @@ int main( int argc, char** argv )
 
 		image->origin = frame->origin;
         cvCopy( frame, image, 0 );
-       
+
+		// TESTING
+		int motionCount = blockMotion.detect(image, imageOld, diff, motionMask, boundingRect, 1.5f);
+
+		cvCopy(image, imageOld);
+
+
+//		cerr << "Motion Count: " << motionCount << endl;
+
+//		cvZero(motionMask);
+//		cvAddonDrawRectangle(motionMask, boundingRect, CV_RGB(180, 180, 180), CV_FILLED);
+
         if( track_object )
         {
             int _vmin = vmin, _vmax = vmax, _smin = smin;
@@ -253,6 +290,13 @@ int main( int argc, char** argv )
 			cvZero(bp);
 			bp->origin = image->origin;
 			hsvFilter.backProject(image, H, S, V, bp, CV_HSV(-1,_smin, _vmin), CV_HSV(256, 256, _vmax) );
+
+
+			// MOTION MASKING - for similar-coloured background
+			if(motionCount > 100) {
+				cvAnd(bp, motionMask, bp);
+			}
+
 
 			// Extract the blobs using a threshold of 100 in the image
 			blobs = CBlobResult( bp, NULL, 25, true );
@@ -364,10 +408,25 @@ int main( int argc, char** argv )
 						cvProjectPCA(imgCenter, pcaAvg, eigenVectorsMax, centerProj );
 						cvBackProjectPCA( centerProj, pcaAvg, eigenVectorsMax, centerResults);
 
-						int x = ( (float*)(centerResults->data.ptr) )[0];
-						int y = ( (float*)(centerResults->data.ptr + centerResults->step) )[0];
+						float x = ( (float*)(centerResults->data.ptr) )[0];
+						float y = ( (float*)(centerResults->data.ptr + centerResults->step) )[0];
 
 						cvCircle(image, cvPoint(x,y), 3, CV_RGB(0,255,0), CV_FILLED);
+
+
+#ifdef WRITE_TRACKING_RESULTS_TO_FILES
+						// Converting projected center (pivot) to {r,theta} line
+						float r, theta;
+						CvPoint2D32f pivot = cvPoint2D32f(x,y);
+						cvAddonFindPolarLineFromPivot(imgOrigin, pivot, r, theta);
+
+						cvAddonDrawPolarLine(image, r, theta, CV_RGB(0,255,0), 2);
+
+						cerr << r << "," << theta << endl;
+						pcaFile << images.number() << "\t" << r << "\t" << theta << endl;
+
+
+#endif
 
 ////						cvProjectPCA(pcaData, pcaAvg, eigenVectors, pcaProj );
 //						cvProjectPCA(pcaData, pcaAvg, eigenVectorsMin, pcaProj );
@@ -443,6 +502,8 @@ int main( int argc, char** argv )
 		cvShowImage( "Colour Object", image);
         cvShowImage( "Back Projection", bp );
         cvShowImage( "HSV Histogram", histImg );
+		
+		cvShowImage( "Motion", motionMask);
 
         c = cvWaitKey(10);
         if( (char) c == 27 || (char) c == 'x' || (char) c == 'X')
@@ -464,6 +525,20 @@ int main( int argc, char** argv )
 
 		case 'c':
 			show_camshift ^= 1;
+			break;
+
+		case 's':
+			saveCvAddonHSVFilter(&hsvFilter, IMAGE_PATH, "hsv_filter.xml");
+			break;
+//		case 'l': 
+//			CvAddonHSVFilter *newHSV = loadCvAddonHSVFilter("./", "hsv_filter.xml");
+//			if(newHSV) {
+//				newHSV->drawHist(histImg);
+//				cvShowImage( "HSV Histogram", histImg );
+//
+//				cvWaitKey(0);
+//			}
+//			break;
         default:
             ;
         }
@@ -487,6 +562,11 @@ int main( int argc, char** argv )
 #ifdef CV_CAPTURE
     cvReleaseCapture( &capture );
 #endif
+
+#ifdef WRITE_TRACKING_RESULTS_TO_FILES
+	pcaFile.close();
+#endif
+
 
     cvDestroyWindow("Back Projection");
     return 0;

@@ -30,6 +30,8 @@
 	#include "cvaddon_display.h"
 #endif
 
+#include "cvaddon_file_io.h"
+
 // HSV colour filtering
 class CvAddonHSVFilter
 {
@@ -79,6 +81,30 @@ private:
 	IplImage *planes[2];
 };
 
+// Support Functions
+inline void saveCvAddonHSVFilter(CvAddonHSVFilter* src, const char* path, const char* name)
+{
+	CvMat mat;
+	cvGetMat( src->hist->bins, &mat, 0, 1 );
+	cvAddonWriteCvArrXML(&mat, path, name);
+}
 
+// The hsv filter is created on the stack, so make sure to delete it when done!
+inline CvAddonHSVFilter* loadCvAddonHSVFilter(const char* path, const char* name)
+{
+	CvAddonHSVFilter *hsv = NULL;
+	CvMat blankMat;
+
+	CvMat* mat = (CvMat*)cvAddonReadCvArrXML(path, name);
+
+	if(mat != NULL) {
+		hsv = new CvAddonHSVFilter(mat->rows, mat->cols);
+
+		cvGetMat(hsv->hist->bins, &blankMat, 0, 1 );
+		cvCopy(mat, &blankMat);
+	}
+	cvReleaseMat(&mat);
+	return hsv;
+}
 
 #endif
