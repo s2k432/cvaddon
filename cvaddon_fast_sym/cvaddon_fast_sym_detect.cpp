@@ -1,5 +1,7 @@
 #include "cvaddon_fast_sym_detect.h"
 #include "cvaddon_edge.h"
+#include "cvaddon_math.h"	// for sub-pixel localization
+#include "cvaddon_draw.h"	// for suppression (drawing rectangles) during peak find - getResult()
 
 #include <algorithm>
 using std::sort;
@@ -9,6 +11,7 @@ using std::sort;
 	using std::endl;
 	using std::cerr;
 #endif
+
 
 CvAddonFastSymDetector::CvAddonFastSymDetector(const CvSize &imgSize
 	, const CvSize &houghSize, const int &rotEdgeRowHeight)
@@ -23,7 +26,7 @@ CvAddonFastSymDetector::CvAddonFastSymDetector(const CvSize &imgSize
 // "Pushed forward" constants
 , R2I_C( (float)R_DIVS / IMG_DIAG )
 , R2I_C_2( R2I_C / 2.0f)
-, I2R_C( IMG_DIAG / (float)R_DIVS )
+, I2R_C( IMG_DIAG / ((float)R_DIVS - 1.0f) )	// -1 needed... ummm...
 , I2TH_C( CV_PI / (float)THETA_DIVS )
 
 , R_DIVS(houghSize.width), THETA_DIVS(houghSize.height)
@@ -47,13 +50,22 @@ CvAddonFastSymDetector::CvAddonFastSymDetector(const CvSize &imgSize
 
 	// **** Allocating Memmory ****
 	// Hough Accumulators - theta = rows
-	H = cvCreateMat(THETA_DIVS, R_DIVS, CV_32FC1);
-	HBackUp = cvCreateMat(THETA_DIVS, R_DIVS, CV_32FC1);
+	// Includes padding for wrap around along theta
+	H = cvCreateMat(THETA_DIVS + 2, R_DIVS, CV_32FC1);
+	HBackUp = cvCreateMat(THETA_DIVS + 2, R_DIVS, CV_32FC1);
+	HMask = cvCreateMat(THETA_DIVS + 2, R_DIVS, CV_8UC1);
 	
-	if(H == NULL || HBackUp == NULL)
+	if(H == NULL || HBackUp == NULL || HMask == NULL)
 		CV_ERROR(CV_StsNoMem, "Out of Memory. Couldn't allocate Hough Accumulators");
 
-	// TODO Error Check?
+	// Creating Hough Accumulator Mask (to exclude padding)
+	cvSet(HMask, cvScalarAll(255));
+	uchar *HRow = HMask->data.ptr;
+	int MStep = HMask->step / sizeof(uchar);
+	for(i = 0; i < MStep ; ++i) HRow[i] = 0;
+	HRow += MStep * (THETA_DIVS+1);
+	for(i = 0; i < MStep ; ++i) HRow[i] = 0;
+
 	rotMats = new CvMat* [THETA_DIVS];
 	for(i = 0; i < THETA_DIVS; ++i)
 	{
@@ -84,6 +96,7 @@ CvAddonFastSymDetector::CvAddonFastSymDetector(const CvSize &imgSize
 	diff = cvCreateMat(2, 1, CV_32FC1);
 	hessian = cvCreateMat(2, 2, CV_32FC1);
 	shift = cvCreateMat(2, 1, CV_32FC1);
+	peakNBH = cvCreateMat(3, 3, CV_32FC1);
 
 	__END__;
 }
@@ -93,6 +106,7 @@ CvAddonFastSymDetector::~CvAddonFastSymDetector()
 	int i;
 	cvReleaseMat(&H);
 	cvReleaseMat(&HBackUp);
+	cvReleaseMat(&HMask);
 
 	cvReleaseMat(&rotatedEdges);
 	delete [] reRowPtrs;
@@ -148,8 +162,11 @@ void CvAddonFastSymDetector::vote( const IplImage *src
 	)
 {
 	int i, thetaIdx;
-	float thresh;
+	float *HRow;	// A Row in H accumulator (theta)
+	int HStep = H->step / sizeof(float);
 	float *rRow, *rEnd;	// Rows of <rotatedEdges>
+	float *rotEdgesPtr;
+	int rotStep = rotatedEdges->step / sizeof(float);
 
 	const float minDist = minPairDist * R2I_C_2;
 	const float maxDist = maxPairDist * R2I_C_2;
@@ -157,6 +174,9 @@ void CvAddonFastSymDetector::vote( const IplImage *src
 	float *x0, *x1;
 
 	int startThetaIdx = 0, endThetaIdx = THETA_DIVS-1;
+
+	float thresh;
+
 
 	// Clearing Hough Accumulator
 	cvZero(H);
@@ -174,46 +194,50 @@ void CvAddonFastSymDetector::vote( const IplImage *src
 	}	
 
 	// Processing image at each angle (Hough Indices)
-	for(thetaIdx = startThetaIdx; thetaIdx <= endThetaIdx; ++thetaIdx) 
+	HRow = H->data.fl+ (startThetaIdx+1) * HStep;
+
+
+	for(thetaIdx = startThetaIdx; thetaIdx <= endThetaIdx; ++thetaIdx, HRow += HStep) 
 	{
+
 		// Rotating input edges and placing them into the 
 		// <rotatedEdges> 2D array
 		rotateStoredEdges(thetaIdx, numEdges);
 
 		int rowMean = 0;
 		int rowCount = 0;
-		for(i = 0; i < ROT_DIVS; ++i)
+		for(i = 0, rotEdgesPtr = rotatedEdges->data.fl; i < ROT_DIVS; ++i, rotEdgesPtr += rotStep)
 		{
-			int rowSize = reRowPtrs[i] - (float*)(rotatedEdges->data.ptr + i*rotatedEdges->step);
+			int rowSize = reRowPtrs[i] - rotEdgesPtr;
 
 			// Rejecting empty (no edge pair) rows
-			
 			if(rowSize <= 1) {// || rowSize >= params.rowCountThresh) {// Rejecting rows with too many edges
-				reRowPtrs[i] = (float*)(rotatedEdges->data.ptr + i*rotatedEdges->step);
+				reRowPtrs[i] = rotEdgesPtr;
 			}
 			else {
 				rowMean += rowSize;
 				++rowCount;
 			}
 		}
-		rowMean /= rowCount;
+		if(rowCount > 0)
+			rowMean /= rowCount;
 
 		// Ratio-based straight line rejection
 		thresh = 2.0f * rowMean;	
-		for(i = 0; i < ROT_DIVS; ++i)
+		for(i = 0, rotEdgesPtr = rotatedEdges->data.fl; i < ROT_DIVS; ++i, rotEdgesPtr += rotStep)
 		{
-			int rowSize = reRowPtrs[i] - (float*)(rotatedEdges->data.ptr + i*rotatedEdges->step);			
+			int rowSize = reRowPtrs[i] - rotEdgesPtr;			
 			if(rowSize >= thresh) {
-				reRowPtrs[i] = (float*)(rotatedEdges->data.ptr + i*rotatedEdges->step);
+				reRowPtrs[i] = rotEdgesPtr;
 			}
 		}
 
-		float *HRow = (float*)(H->data.ptr + thetaIdx * H->step);
-		for(i = 0; i < ROT_DIVS; ++i)
-		{
-			rRow = (float*)(rotatedEdges->data.ptr + i*rotatedEdges->step);
-			rEnd = reRowPtrs[i];
 
+
+		for(i = 0, rotEdgesPtr = rotatedEdges->data.fl; i < ROT_DIVS; ++i, rotEdgesPtr += rotStep)
+		{
+			rRow = rotEdgesPtr;
+			rEnd = reRowPtrs[i];
 			if(rEnd != rRow)
 			{
 				for(x0 = rRow; x0 != rEnd-1; ++x0)
@@ -227,51 +251,55 @@ void CvAddonFastSymDetector::vote( const IplImage *src
 						}
 					}
 				}
-			}
-		
-		}
+			}		
+		}		
+	}
 
-		// Interpolating along r is *probably* not worthwhile (see version 2 code with ACRA stereo paper)
-		// as theta accuracy is generally the dominant error source (+- 1 degree is much worst than 1 pixel error in R)
-		//
-		// Also tried using a sort(rRow, rEnd) so that the fabsf() call in the inner loop is not needed. However, 
-		// it seems to only slow things down on my test images. Hard to say which one is faster in practice, as
-		// the sort() speed will depend on memory access and the library implementation. fabsf() also depends on 
-		// implementation, but I feel requires fewer assumptions and has a more consistent speed. 
 
-//#ifdef _SPREAD_VOTES
-//		if(thetaIdx != params.startThetaIdx
-//			&& params.endThetaIdx != thetaIdx){
-//
-//			for(int r = 0; r < 3; ++r) {
-//				HRowPtrs[r] = H[thetaIdx + r - 1];
-//			}
-//			for(int h = 1; h < initParams.rDivs-1; ++h)
-//			{
-//				if(HRow[h] > 0) {
-//					for(int r = 0; r < 3; ++r) {
-//						HRowPtrs[r][h-1] += G[3*r + 0] * HRow[h]; //0.5f * HRow[h];
-//						HRowPtrs[r][h] += G[3*r + 1] * HRow[h]; //HRow[h];
-//						HRowPtrs[r][h+1] += G[3*r + 2] * HRow[h]; //0.5f * HRow[h];
-//					}
-//				}
-//			}
-//		}
-//#else
-//	memcpy(H[thetaIdx], HRow, sizeof(AccumType)*initParams.rDivs);
-//#endif
+	// Wrapping theta rows around into padding
+	float *HRowPad;
+	float *HRowSrc;
 
+	// Copying last theta row (before padding) to row 0 (padding)
+	HRowPad = H->data.fl + 0;
+	HRowSrc = H->data.fl + HStep * (THETA_DIVS);
+	for(i = 0; i < HStep; ++i) {
+		HRowPad[i] = HRowSrc[i];
+	}
+	// Copying first theta row (after padding) to last row (padding)
+	HRowPad = H->data.fl + HStep * (THETA_DIVS + 1);
+	HRowSrc = H->data.fl + HStep * 1;
+	for(i = 0; i < HStep; ++i) {
+		HRowPad[i] = HRowSrc[i];
 	}
 }
 
 void CvAddonFastSymDetector::getResult(const int &maxPeaksFound, CvAddonFastSymResults &dst
+	, const float &rNBHDivs, const float &thetaNBHDivs
+	, const bool &smoothBins
 	, const bool &limitRange, const float &r0, const float &r1
 	, const float &th0, const float &th1
 	, const float &threshToZero, const float &threshRelMaxPeak
 	)
 {
+	int i,j;
+	int HStep = H->step / sizeof(float);
+
 	int nPeaks = maxPeaksFound;
 	if(nPeaks <= 0) nPeaks = 1;
+
+	// Calculating suppression neighbourhood
+	int rNBH, thetaNBH;
+	if(rNBHDivs <= 2 || thetaNBHDivs <= 2) {
+		rNBH = cvRound(R_DIVS / 20.0f);
+		thetaNBH = cvRound(THETA_DIVS / 20.0f);
+	}
+	else {
+		rNBH = cvRound((float)R_DIVS / rNBHDivs / 2.0f);
+		thetaNBH = cvRound((float)THETA_DIVS / thetaNBHDivs / 2.0f);
+	}
+
+	cerr << rNBH << "," << thetaNBH << endl;
 
 	// Not enough room in results structure
 	if(dst.maxSym < nPeaks) {
@@ -286,7 +314,10 @@ void CvAddonFastSymDetector::getResult(const int &maxPeaksFound, CvAddonFastSymR
 
 	// Making copy of Hough Accumulator 
 	// (as peak find process destroys the bin values)
-	cvCopy(H, HBackUp);
+	if(smoothBins)
+		cvSmooth(H, HBackUp);
+	else
+		cvCopy(H, HBackUp);
 
 	int p;
 
@@ -300,88 +331,104 @@ void CvAddonFastSymDetector::getResult(const int &maxPeaksFound, CvAddonFastSymR
 		{	
 			double maxVal;
 			CvPoint maxLoc;
-			cvMinMaxLoc(HBackUp, NULL, &maxVal, NULL, &maxLoc);
+			cvMinMaxLoc(HBackUp, NULL, &maxVal, NULL, &maxLoc, HMask);
+
+			int rIdx = maxLoc.x;
+			int tIdx = maxLoc.y;
 
 			// No more non-zero peaks left
 			if(maxVal <= 0) break;
-				
+		
+			// Chuck results (and hence skip sub-pixel localization)
+			// if r values too large (most likely erroneous)
+			// TODO increase ignored margins (too close to diagonal?)
+			if(rIdx <= 0 || rIdx >= R_DIVS - 1) break;
+
+			// A "WTF" moment, as theta index is in the padding...
+			if(tIdx <= 0 || tIdx >= THETA_DIVS+1) {
+				break;
+			}
+
 			// Copying raw results
 			dst.symLines[p].numOfVotes		= maxVal;
-			dst.symLines[p].rIndexRaw		= maxLoc.x;
-			dst.symLines[p].thetaIndexRaw	= maxLoc.y;
+			dst.symLines[p].rIndexRaw		= rIdx;
+			dst.symLines[p].thetaIndexRaw	= tIdx;
 			
-			// Sub-pixel localization of peak
-			// TODO
+			//  *** Sub-pixel localization of peak ***
+			// Note: Padding rows already wrapped around theta during voting
+			CvRect NBH = cvRect(rIdx-1, tIdx-1, 3, 3);
+			cvGetSubRect(HBackUp, peakNBH, NBH);
+
+			// Copying data to float array
+			for(i = 0; i < peakNBH->height; ++i) 
+			{
+				for(j = 0; j < peakNBH->width; ++j)
+				{
+					peakNBVals[3*i + j] = CV_MAT_VAL(peakNBH, float, i, j);
+				}
+			}
+
+			// Solving for peak
+			peakShift = cvAddonFindExtrema3x3_2D(peakNBVals, diff, hessian, shift);
+
+			// Ignore refinement shift if it is too large (probably a bad hessian fit)
+			if(fabsf(peakShift[0]) >= 1.0f || fabsf(peakShift[1]) >= 1.0f) {
+				dst.symLines[p].rIndex		= (float)rIdx;
+				dst.symLines[p].thetaIndex	= (float)tIdx;
+			}
+			else {
+				// Adjusting peak location
+				dst.symLines[p].rIndex		= (float)rIdx + peakShift[0];
+				dst.symLines[p].thetaIndex	= (float)tIdx + peakShift[1];
+			}
+
+			// Finding theta in radians, r in pixels
+			dst.symLines[p].r			= getPixelFromIndex(dst.symLines[p].rIndex);
+			dst.symLines[p].theta		= getRadiansFromIndex(dst.symLines[p].thetaIndex);
+
+			
+			// Suppressing Peak Neighbourhood by zeroing mask
+			bool wrapMaskTheta = false;
+			int r0 = (rIdx - rNBH) < 0 ? 0 : rIdx - rNBH;
+			int r1 = (rIdx + rNBH) > R_DIVS-1 ? R_DIVS-1 : rIdx + rNBH;
+			int t0 = tIdx - thetaNBH;
+			int t1 = tIdx + thetaNBH;
+
+			if(t0 <= 0 || t1 >= THETA_DIVS+1) wrapMaskTheta = true;
+
+			if(wrapMaskTheta) {
+//				// DEBUG
+//				cerr << "WRAP" << endl;
+
+				CvRect NBHSub0, NBHSub1;
+
+				// Wrapping from 0 --> THETA_DIVS
+				// Note that wrapping theta also requires negating r (as r changes signs when theta -90 <--> +90)
+				if(t0 <= 0) {
+					int NBHWidth = r1-r0;
+					NBHSub0 = cvRect(r0, 0, NBHWidth, t1);
+
+					// When r0 ~= R_DIVS_2 - 0.5f (center), the suppression region is pretty much 
+					// being flipped across theta only. So, not worrying about -0.5f
+					r1 = R_DIVS - r1;
+
+					NBHSub1 = cvRect(r1, t0 + (THETA_DIVS - 1), NBHWidth, THETA_DIVS + 1);
+				}
+
+				if(t1 >= THETA_DIVS+1) {
+					NBHSub0 = cvRect(r0, t0, r1-r0, THETA_DIVS + 1);
+					NBHSub1 = cvRect(r0, 0, r1-r0, t1 - (THETA_DIVS - 1));
+				}
+
+				cvAddonDrawRectangle(HMask, NBHSub0, CV_RGB(0,0,0), CV_FILLED);
+				cvAddonDrawRectangle(HMask, NBHSub1, CV_RGB(0,0,0), CV_FILLED);
+			}
+			else {
+				CvRect NBHSub = cvRect(r0, t0, r1-r0, t1-t0);
+				cvAddonDrawRectangle(HMask, NBHSub, CV_RGB(0,0,0), CV_FILLED);
+			}
 		}
 		dst.numSym = p;
 	}
-
-/*
-		// Also handling boundary Theta values by
-		// Duplicating in R direction
-		if(th == params.startThetaIdx) {
-			// Using middle row as first row
-			for(n = 0; n <= 2; ++n)
-				peakNBVals[0 + n] = H[th][r + n -1];
-
-			for(m = 1; m <= 2; ++m)
-			{
-				for(n = 0; n <= 2; ++n)
-					peakNBVals[3*m + n] = H[(th + m - 1)][r + n -1];
-			}			
-		}
-		else if( th == params.endThetaIdx ) {
-			for(m = 0; m <= 1; ++m)
-			{
-				for(n = 0; n <= 2; ++n)
-					peakNBVals[3*m + n] = H[(th + m - 1)][r + n -1];
-			}
-
-			// Using middle row as last row
-			for(n = 0; n <= 2; ++n)
-				peakNBVals[6 + n] = H[th][r + n -1];
-		}
-		else {
-			for(m = 0; m <= 2; ++m)
-			{
-				for(n = 0; n <= 2; ++n)
-					peakNBVals[3*m + n] = H[(th + m - 1)][r + n -1];
-			}
-		}
-
-		// Solving for peak
-		peakShift = cvAddonFindExtrema3x3_2D(peakNBVals, diff, hessian, shift);
-
-		// Adjusting peak location
-		results.peaks[results.numPeaks].x += peakShift[0];
-
-		if(th != params.startThetaIdx  && th != params.endThetaIdx)
-			results.peaks[results.numPeaks].y += peakShift[1];
-
-		// *** Suppressing Neigbourhood ***
-		// Finding boundaries of suppression area. We are NOT WRAPPING around
-		// TODO should we wrap along theta?
-		int thStartIdx = ( th - params.thetaNBH >= 0 ? th - params.thetaNBH : 0);
-		int thEndIdx = ( th + params.thetaNBH < initParams.thetaDivs ? th + params.thetaNBH : initParams.thetaDivs - 1);
-
-		int rStartIdx = ( r - params.rNBH >= 0 ? r - params.rNBH : 0);
-		int rEndIdx = ( r + params.rNBH < initParams.rDivs ? r + params.rNBH : initParams.rDivs - 1);
-
-		for(i = thStartIdx; i <= thEndIdx; ++i)
-		{
-			HPtr = H[i];
-			for(j = rStartIdx; j <= rEndIdx; j++)
-			{
-				HPtr[j] = 0;
-			}
-		}
-
-		++results.numPeaks;
-	}
-
-	// Restoring Hough Accumulator
-	if(!destroyHoughAccum)
-		memcpy(*houghBackUp, *H, sizeof(AccumType)*accumSize);
-*/
 
 }

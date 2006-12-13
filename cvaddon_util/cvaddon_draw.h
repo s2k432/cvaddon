@@ -97,10 +97,14 @@ inline void cvAddonDrawPolarLine(IplImage *dst, const float &r, const float &the
 	cvLine(dst, xrPt, p0, color, thickness);
 	cvLine(dst, xrPt, p1, color, thickness);
 
+#ifdef _DEBUG
+	// Draw end points
 	cvLine(dst, p0, p0, color, thickness*3);
 	cvLine(dst, p1, p1, color, thickness*3);
 
+	// Draw pivot point (perpendicular to line, connecting line to image center)
 	cvLine(dst, xrPt, xrPt, color, thickness*3, CV_AA);
+#endif
 
 	__END__;
 }

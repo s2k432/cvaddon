@@ -95,7 +95,7 @@ inline void cvAddonFindPolarLineEndPoints(const CvSize &size, const float &r, co
 		d[3] = ((float)size.height - 1 - y_r) / cos_th;
 	}
 
-	min_d = fabsf(d[0]);
+	min_d = d[0];
 	for(i = 1; i < 4; ++i)
 	{
 		float dist = d[i];
@@ -115,7 +115,7 @@ inline void cvAddonFindPolarLineEndPoints(const CvSize &size, const float &r, co
 		d[3] = (1 + y_r - (float)size.height) / cos_th;
 	}
 
-	min_d = fabsf(d[0]);
+	min_d = d[0];
 	for(i = 1; i < 4; ++i)
 	{
 		float dist = d[i];
@@ -125,7 +125,7 @@ inline void cvAddonFindPolarLineEndPoints(const CvSize &size, const float &r, co
 
 	p1 = cvPoint( cvRound(min_d * sin_th + x_r), cvRound(-min_d * cos_th + y_r) );
 	
-	xrPt = cvPoint( cvRound(x_r), cvRound(y_r));
+	xrPt = cvPoint( cvRound(x_r), cvRound(y_r) );
 }
 
 
