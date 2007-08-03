@@ -13,7 +13,6 @@
 // - Recommended Theta bins: 180 (1 degree resolution)
 //
 // *** TODO ***
-// - Non-Maxima suppression in Peak Find
 // - Angle limits in voting AND peak find
 // - R limits in peak find
 // - Row thresholds for voting (Row masking?)
@@ -88,7 +87,7 @@ public:
 		, const float &rNBHDivs = 10.0f, const float &thetaNBHDivs = 10.0f
 		, const bool &smoothBins = true		// Smoothing Hough accum before peak find
 		, const bool &limitRange = false
-		, const float &r0 = 0.0f,  const float &r1 = 0.0f
+//		, const float &r0 = 0.0f,  const float &r1 = 0.0f
 		, const float &th0 = 0.0f,  const float &th1 = 0.0f
 		, const float &threshToZero = -1.0f		// if > 0, peaks with height < threshToZero are set to 0
 		, const float &threshRelMaxPeak = -1.0f	// if > 0, peaks < threshRelMaxPeak * maxPeak are set to 0

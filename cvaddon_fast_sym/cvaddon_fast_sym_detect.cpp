@@ -37,6 +37,8 @@ CvAddonFastSymDetector::CvAddonFastSymDetector(const CvSize &imgSize
 	int i;
 	CvMat *rotMat;	// 2x3 rotation matrix
 	double rotInc;
+	uchar *HRow;
+	int MStep;
 
 	CV_FUNCNAME("CvAddonFastSymDetector Constructor");
 
@@ -57,14 +59,6 @@ CvAddonFastSymDetector::CvAddonFastSymDetector(const CvSize &imgSize
 	
 	if(H == NULL || HBackUp == NULL || HMask == NULL)
 		CV_ERROR(CV_StsNoMem, "Out of Memory. Couldn't allocate Hough Accumulators");
-
-	// Creating Hough Accumulator Mask (to exclude padding)
-	cvSet(HMask, cvScalarAll(255));
-	uchar *HRow = HMask->data.ptr;
-	int MStep = HMask->step / sizeof(uchar);
-	for(i = 0; i < MStep ; ++i) HRow[i] = 0;
-	HRow += MStep * (THETA_DIVS+1);
-	for(i = 0; i < MStep ; ++i) HRow[i] = 0;
 
 	rotMats = new CvMat* [THETA_DIVS];
 	for(i = 0; i < THETA_DIVS; ++i)
@@ -257,6 +251,8 @@ void CvAddonFastSymDetector::vote( const IplImage *src
 
 
 	// Wrapping theta rows around into padding
+	// NOTE: The row is mirrored to match the r negation
+	// that occurs across the theta boundary
 	float *HRowPad;
 	float *HRowSrc;
 
@@ -264,20 +260,20 @@ void CvAddonFastSymDetector::vote( const IplImage *src
 	HRowPad = H->data.fl + 0;
 	HRowSrc = H->data.fl + HStep * (THETA_DIVS);
 	for(i = 0; i < HStep; ++i) {
-		HRowPad[i] = HRowSrc[i];
+		HRowPad[i] = HRowSrc[HStep-i-1];
 	}
 	// Copying first theta row (after padding) to last row (padding)
 	HRowPad = H->data.fl + HStep * (THETA_DIVS + 1);
 	HRowSrc = H->data.fl + HStep * 1;
 	for(i = 0; i < HStep; ++i) {
-		HRowPad[i] = HRowSrc[i];
+		HRowPad[i] = HRowSrc[HStep-i-1];
 	}
 }
 
 void CvAddonFastSymDetector::getResult(const int &maxPeaksFound, CvAddonFastSymResults &dst
 	, const float &rNBHDivs, const float &thetaNBHDivs
 	, const bool &smoothBins
-	, const bool &limitRange, const float &r0, const float &r1
+	, const bool &limitRange//, const float &r0, const float &r1
 	, const float &th0, const float &th1
 	, const float &threshToZero, const float &threshRelMaxPeak
 	)
@@ -287,6 +283,14 @@ void CvAddonFastSymDetector::getResult(const int &maxPeaksFound, CvAddonFastSymR
 
 	int nPeaks = maxPeaksFound;
 	if(nPeaks <= 0) nPeaks = 1;
+
+	// Creating Hough Accumulator Mask (to exclude padding)
+	cvSet(HMask, cvScalarAll(255));
+	int MStep = HMask->step / sizeof(uchar);
+	uchar *MRow = HMask->data.ptr;
+	for(i = 0; i < MStep ; ++i) MRow[i] = 0;
+	MRow += MStep * (THETA_DIVS+1);
+	for(i = 0; i < MStep ; ++i) MRow[i] = 0;
 
 	// Calculating suppression neighbourhood
 	int rNBH, thetaNBH;
@@ -299,7 +303,7 @@ void CvAddonFastSymDetector::getResult(const int &maxPeaksFound, CvAddonFastSymR
 		thetaNBH = cvRound((float)THETA_DIVS / thetaNBHDivs / 2.0f);
 	}
 
-	cerr << rNBH << "," << thetaNBH << endl;
+//	cerr << rNBH << "," << thetaNBH << endl;
 
 	// Not enough room in results structure
 	if(dst.maxSym < nPeaks) {

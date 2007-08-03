@@ -18,7 +18,7 @@
 
 // Uncomment to write results to text files in 
 // IMAGE_PATH
-#define WRITE_TRACKING_RESULTS_TO_FILES
+// #define WRITE_TRACKING_RESULTS_TO_FILES
 
 #include "cv.h"
 #include "highgui.h"
@@ -159,15 +159,15 @@ int main( int argc, char** argv )
 		exit(1);
 	}
 #else
-//	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/white_back_50fps/";
-//	const char* IMAGE_NAME = "default070.bmp";		// Frames overwritten (1001 ==>0001 etc..) until ~069
+	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/white_back_50fps/";
+	const char* IMAGE_NAME = "default070.bmp";		// Frames overwritten (1001 ==>0001 etc..) until ~069
 
 	// Needs motionMask	
 //	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/mixed_back_new_50fps/";
-	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/red_back_new_50fps/";
+//	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/red_back_new_50fps/";
 
 //	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/edge_noise_back_new_50fps/";
-	const char* IMAGE_NAME = "default000.bmp";		// Frame skip after 069 for some odd reason
+//	const char* IMAGE_NAME = "default000.bmp";		// Frame skip after 069 for some odd reason
 
 	CvAddonImageReader images(IMAGE_PATH, IMAGE_NAME);
 
@@ -320,8 +320,8 @@ int main( int argc, char** argv )
 					CvPoint a = cvPoint(blob2.MinX(), blob2.MinY());
 					CvPoint b = cvPoint(blob2.MaxX(), blob2.MaxY());
 
-					cvCircle(image, centroid, 4, CV_RGB(0,0,255), CV_FILLED);
-					cvRectangle(image, a, b, CV_RGB(0,0,255), 2, CV_AA);
+//					cvCircle(image, centroid, 4, CV_RGB(0,0,255), CV_FILLED);
+//					cvRectangle(image, a, b, CV_RGB(0,0,255), 2, CV_AA);
 
 					cvZero(V);
 					blob2.FillBlob( V, CV_RGB(255,255,255));
@@ -401,7 +401,7 @@ int main( int argc, char** argv )
 							int x = ( (float*)(pcaResults->data.ptr) )[i];
 							int y = ( (float*)(pcaResults->data.ptr + pcaResults->step) )[i];
 
-							cvLine(image, cvPoint(x,y), cvPoint(x,y), CV_RGB(0,0,255), 1);
+							cvLine(image, cvPoint(x,y), cvPoint(x,y), CV_RGB(0,0,255), 3, CV_AA);
 						}	
 
 						// Projecting image center
@@ -411,7 +411,7 @@ int main( int argc, char** argv )
 						float x = ( (float*)(centerResults->data.ptr) )[0];
 						float y = ( (float*)(centerResults->data.ptr + centerResults->step) )[0];
 
-						cvCircle(image, cvPoint(x,y), 3, CV_RGB(0,255,0), CV_FILLED);
+//						cvCircle(image, cvPoint(x,y), 3, CV_RGB(0,255,0), CV_FILLED);
 
 
 #ifdef WRITE_TRACKING_RESULTS_TO_FILES
@@ -455,6 +455,7 @@ int main( int argc, char** argv )
 					}
 				}
 
+				cvCircle(image, cvPointFrom32f( findCentroid(bp) ), 3, CV_RGB(0,0,0), CV_FILLED);
 			}
 //			blobWithLessArea.FillBlob( image, CV_RGB( 0, 255, 0 ));
 
@@ -488,7 +489,7 @@ int main( int argc, char** argv )
 
 			
 
-			cvCircle(image, cvPointFrom32f( findCentroid(bp) ), 3, CV_RGB(0,0,0), CV_FILLED);
+//			cvCircle(image, cvPointFrom32f( findCentroid(bp) ), 3, CV_RGB(0,0,0), CV_FILLED);
         }
         
 		// Select window (exclusion) effect
@@ -527,9 +528,20 @@ int main( int argc, char** argv )
 			show_camshift ^= 1;
 			break;
 
+//		case 's':
+//			saveCvAddonHSVFilter(&hsvFilter, IMAGE_PATH, "hsv_filter.xml");
+//			break;
+
 		case 's':
-			saveCvAddonHSVFilter(&hsvFilter, IMAGE_PATH, "hsv_filter.xml");
+			cvSaveImage("src.png", frame);
+			cvSaveImage("pca.png", image);
+			cvSaveImage("bp.png", bp);
+			cvSaveImage("hist.png", histImg);
+			cvSaveImage("motion.png", motionMask);
 			break;
+
+
+
 //		case 'l': 
 //			CvAddonHSVFilter *newHSV = loadCvAddonHSVFilter("./", "hsv_filter.xml");
 //			if(newHSV) {

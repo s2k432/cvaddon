@@ -2,7 +2,7 @@
 // ground truth markers, PCA on colour filter and fast symmetry
 
 // Uncomment to write symmetry line {r,theta} to file
-#define WRITE_SYM_R_THETA
+// #define WRITE_SYM_R_THETA
 
 #include "cv.h"
 #include "highgui.h"
@@ -40,7 +40,7 @@ int main()
 	CvSize frameSize;
 
 	// Needs work
-//    const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/mixed_back_new_50fps/";
+//	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/mixed_back_new_50fps/";
 //	const char* IMAGE_NAME = "default000.bmp";
 
 //	const char* IMAGE_PATH = "F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/edge_noise_back_new_50fps/";
@@ -56,7 +56,7 @@ int main()
 	const char *LOG_PATH = IMAGE_PATH;
 	const char *GROUND_TRUTH_LOG_NAME = "ground_truth.txt";
 	
-	const char *PCA_LOG_NAME = "pca_axis.txt";
+//	const char *PCA_LOG_NAME = "pca_axis.txt";
 
 #ifdef WRITE_SYM_R_THETA
 	ofstream rThetaFile((string(LOG_PATH) + "/" + string("ground_truth_r_theta.txt") ).c_str() );
@@ -73,8 +73,8 @@ int main()
 	ifstream dataFile( (string(LOG_PATH) + "/" + string(GROUND_TRUTH_LOG_NAME) ).c_str() );
 	if(!dataFile.is_open()) exit(1);
 
-	ifstream pcaFile( (string(LOG_PATH) + "/" + string(PCA_LOG_NAME) ).c_str() );
-	if(!pcaFile.is_open()) exit(1);
+//	ifstream pcaFile( (string(LOG_PATH) + "/" + string(PCA_LOG_NAME) ).c_str() );
+//	if(!pcaFile.is_open()) exit(1);
 
     cvNamedWindow( "Colour Object", 1 );
 
@@ -101,13 +101,13 @@ int main()
 
 			cvAddonFindPolarLineFromEndPoints(center, pt0, pt1, r, theta);			
 			if(show_ground_truth)			
-				cvAddonDrawPolarLine(image, r, theta, CV_RGB(0,0,0), 1);
+				cvAddonDrawPolarLine(image, r, theta, CV_RGB(0,0,0), 2 );
 		
-			int pcaImgNum;
-			float pcaR, pcaTheta;
-			pcaFile >> pcaImgNum >> pcaR >> pcaTheta;
-			if(show_pca)
-				cvAddonDrawPolarLine(image, pcaR, pcaTheta, CV_RGB(0,255,0), 1);
+//			int pcaImgNum;
+//			float pcaR, pcaTheta;
+//			pcaFile >> pcaImgNum >> pcaR >> pcaTheta;
+//			if(show_pca)
+//				cvAddonDrawPolarLine(image, pcaR, pcaTheta, CV_RGB(0,255,0), 1);
 
 			
 #ifdef WRITE_SYM_R_THETA
@@ -117,8 +117,8 @@ int main()
 	//		cerr << r << "," << theta << endl;
 	//		cvAddonDrawPolarLine(image, -183.6840, 0.2746, CV_RGB(0,0,0), 1);
 
-			cvCircle(image, cvPointFrom32f(pt0), 1, CV_RGB(0,255,0), CV_FILLED);
-			cvCircle(image, cvPointFrom32f(pt1), 1, CV_RGB(255,0,0), CV_FILLED);
+			cvCircle(image, cvPointFrom32f(pt0), 3, CV_RGB(0,255,0), CV_FILLED, CV_AA);
+			cvCircle(image, cvPointFrom32f(pt1), 3, CV_RGB(255,0,0), CV_FILLED, CV_AA);
 
 		}
         

@@ -3,7 +3,6 @@
 #include <cv.h>
 #include <highgui.h>
 
-#include "fast_sym.h"
 #include "cvaddon_fast_sym_detect.h"
 
 #include "cvaddon_draw.h"
@@ -22,8 +21,11 @@ using std::endl;
 int main()
 {
 //	IplImage *in = cvLoadImage("real_img1.bmp");
-	IplImage *in = cvLoadImage("perception_vase.png");
-//	IplImage *in = cvLoadImage("test_sym0.png");
+//	IplImage *in = cvLoadImage("perception_vase.png");
+//	IplImage *in = cvLoadImage("test_sym_90deg_y_shifted_down.PNG");
+//	IplImage *in = cvLoadImage("test_sym_90_cw13_5bdeg.png");
+	IplImage *in = cvLoadImage("F:/_WORK/_PhD/code_and_data/symmetry/images/pendulum_improved/edge_noise_back_new_50fps/default013.bmp");	
+
 	IplImage *inGray = cvCreateImage(cvGetSize(in), IPL_DEPTH_8U, 1);
 	IplImage *inEdge = cvCreateImage(cvGetSize(in), IPL_DEPTH_8U, 1);
 
@@ -33,6 +35,14 @@ int main()
 
 	cvCvtColor(in, inGray, CV_BGR2GRAY);
 	cvCanny(inGray, inEdge, CANNY_TH[0], CANNY_TH[1]);
+
+	// Clearing border of edge image
+	cvAddonFillBorder(inEdge, 10, CV_RGB(0,0,0));
+
+//	cvSaveImage("test_edge.png", inEdge);
+//	exit(1);
+
+	inEdge = cvLoadImage("test_edge.png", 0);
 
 	// Testing r accuracy
 //	inEdge = cvLoadImage("test_sym_r_neg1.png", 0);
@@ -49,7 +59,7 @@ int main()
 	t0.getLoopTime();
 	for(i = 0 ; i < TRIALS; ++i) {
 #endif
-		symDetector.vote(inEdge, 25, 1000);
+		symDetector.vote(inEdge, 25, 250);
 #ifndef _DEBUG
 	}
 	cerr << "Voting Took: " << t0.getLoopTime() / (float)TRIALS << endl;
@@ -58,13 +68,13 @@ int main()
 	cvAddonShowImageOnce(symDetector.H);
 	cvAddonShowImageOnce(symDetector.HMask);
 
-	CvAddonFastSymResults symResults(1);
+	CvAddonFastSymResults symResults(25);
 	
 #ifndef _DEBUG
 	t0.getLoopTime();
 	for(i = 0 ; i < TRIALS; ++i) {
 #endif	
-	symDetector.getResult(25, symResults, 10, 10, true);
+	symDetector.getResult(1, symResults, 10, 10, false);
 #ifndef _DEBUG
 	}
 	cerr << "Peak Find Took: " << t0.getLoopTime() / (float)TRIALS << endl;

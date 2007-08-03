@@ -91,11 +91,6 @@ SOURCE=.\cvaddon_fast_sym_detect.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\fast_sym.cpp
-# PROP Exclude_From_Build 1
-# End Source File
-# Begin Source File
-
 SOURCE=.\main.cpp
 # End Source File
 # End Group
@@ -112,17 +107,19 @@ SOURCE=..\cvaddon_util\cvaddon_draw.h
 # End Source File
 # Begin Source File
 
+SOURCE=..\cvaddon_image\cvaddon_edge.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\cvaddon_fast_sym_detect.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\fast_sym.h
-# PROP Exclude_From_Build 1
+SOURCE=..\cvaddon_util\cvaddon_math.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\fast_sym_data.h
-# PROP Exclude_From_Build 1
+SOURCE=..\util\windows_fast_timer.h
 # End Source File
 # End Group
 # Begin Group "Resource Files"
