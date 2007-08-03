@@ -10,6 +10,8 @@ using std::sort;
 	#include <iostream>
 	using std::endl;
 	using std::cerr;
+
+	#include "cvaddon_display.h"
 #endif
 
 
@@ -146,7 +148,7 @@ void CvAddonFastSymDetector::rotateStoredEdges(const unsigned int& thetaIdx, con
 
 
 // Voting (Hough Accumulation) function
-// TODO angle limits, sample rows and hard threshold
+// sample rows and hard threshold
 void CvAddonFastSymDetector::vote( const IplImage *src
 	, const int &minPairDist, const int &maxPairDist
 	, const bool &angleLimits, const float &minThetaDeg, const float &maxThetaDeg
@@ -175,6 +177,13 @@ void CvAddonFastSymDetector::vote( const IplImage *src
 	// Clearing Hough Accumulator
 	cvZero(H);
 
+
+	// NEW - Angle Limits
+	if(angleLimits) {
+		startThetaIdx = (minThetaDeg + 90.0f) / 180.0f * (THETA_DIVS-1); 
+		endThetaIdx = (maxThetaDeg + 90.0f) / 180.0f * (THETA_DIVS-1);
+	}
+
 	// Extracting locations of edge pixels from edge image
 	int numEdges = cvAddonFindNonZeroPixels<uchar>(src, edges, MAX_EDGE_PIXELS);
 
@@ -189,7 +198,6 @@ void CvAddonFastSymDetector::vote( const IplImage *src
 
 	// Processing image at each angle (Hough Indices)
 	HRow = H->data.fl+ (startThetaIdx+1) * HStep;
-
 
 	for(thetaIdx = startThetaIdx; thetaIdx <= endThetaIdx; ++thetaIdx, HRow += HStep) 
 	{
@@ -273,8 +281,8 @@ void CvAddonFastSymDetector::vote( const IplImage *src
 void CvAddonFastSymDetector::getResult(const int &maxPeaksFound, CvAddonFastSymResults &dst
 	, const float &rNBHDivs, const float &thetaNBHDivs
 	, const bool &smoothBins
-	, const bool &limitRange//, const float &r0, const float &r1
-	, const float &th0, const float &th1
+	, const bool &angleLimits//, const float &r0, const float &r1
+	, const float &minThetaDeg, const float &maxThetaDeg
 	, const float &threshToZero, const float &threshRelMaxPeak
 	)
 {
@@ -291,6 +299,32 @@ void CvAddonFastSymDetector::getResult(const int &maxPeaksFound, CvAddonFastSymR
 	for(i = 0; i < MStep ; ++i) MRow[i] = 0;
 	MRow += MStep * (THETA_DIVS+1);
 	for(i = 0; i < MStep ; ++i) MRow[i] = 0;
+
+	// NEW - Angle Limits
+	if(angleLimits) {
+		int startThetaIdx = (minThetaDeg + 90.0f) / 180.0f * (THETA_DIVS-1) + 1; 
+		int endThetaIdx = (maxThetaDeg + 90.0f) / 180.0f * (THETA_DIVS-1) + 1;
+
+		MRow = HMask->data.ptr;
+			
+		// Zeroing mask values before start angle
+		MRow = HMask->data.ptr + MStep;
+		for(j = 1; j < startThetaIdx; ++j) { 
+			for(i = 0; i < MStep ; ++i) MRow[i] = 0;
+			MRow += MStep;
+		}
+
+		MRow = HMask->data.ptr + (endThetaIdx+1)*MStep;
+		for(j = endThetaIdx+1; j < THETA_DIVS+1; ++j) { 
+			for(i = 0; i < MStep ; ++i) MRow[i] = 0;
+			MRow += MStep;
+		}
+
+#ifdef _DEBUG
+		cvAddonShowImageOnce(HMask, "Hough Mask with Angle Limits");
+#endif
+	}
+
 
 	// Calculating suppression neighbourhood
 	int rNBH, thetaNBH;
@@ -318,10 +352,8 @@ void CvAddonFastSymDetector::getResult(const int &maxPeaksFound, CvAddonFastSymR
 
 	// Making copy of Hough Accumulator 
 	// (as peak find process destroys the bin values)
-	if(smoothBins)
-		cvSmooth(H, HBackUp);
-	else
-		cvCopy(H, HBackUp);
+	if(smoothBins) cvSmooth(H, HBackUp);
+	else cvCopy(H, HBackUp);
 
 	int p;
 
@@ -330,109 +362,106 @@ void CvAddonFastSymDetector::getResult(const int &maxPeaksFound, CvAddonFastSymR
 	float peakNBVals[9];
 
 	// Simple global peak search
-	if(!limitRange) {
-		for(p = 0; p < nPeaks; ++p)
-		{	
-			double maxVal;
-			CvPoint maxLoc;
-			cvMinMaxLoc(HBackUp, NULL, &maxVal, NULL, &maxLoc, HMask);
+	for(p = 0; p < nPeaks; ++p)
+	{	
+		double maxVal;
+		CvPoint maxLoc;
+		cvMinMaxLoc(HBackUp, NULL, &maxVal, NULL, &maxLoc, HMask);
 
-			int rIdx = maxLoc.x;
-			int tIdx = maxLoc.y;
+		int rIdx = maxLoc.x;
+		int tIdx = maxLoc.y;
 
-			// No more non-zero peaks left
-			if(maxVal <= 0) break;
+		// No more non-zero peaks left
+		if(maxVal <= 0) break;
+	
+		// Chuck results (and hence skip sub-pixel localization)
+		// if r values too large (most likely erroneous)
+		// TODO increase ignored margins (too close to diagonal?)
+		if(rIdx <= 0 || rIdx >= R_DIVS - 1) break;
+
+		// A "WTF" moment, as theta index is in the padding...
+		if(tIdx <= 0 || tIdx >= THETA_DIVS+1) {
+			break;
+		}
+
+		// Copying raw results
+		dst.symLines[p].numOfVotes		= maxVal;
+		dst.symLines[p].rIndexRaw		= rIdx;
+		dst.symLines[p].thetaIndexRaw	= tIdx;
 		
-			// Chuck results (and hence skip sub-pixel localization)
-			// if r values too large (most likely erroneous)
-			// TODO increase ignored margins (too close to diagonal?)
-			if(rIdx <= 0 || rIdx >= R_DIVS - 1) break;
+		//  *** Sub-pixel localization of peak ***
+		// Note: Padding rows already wrapped around theta during voting
+		CvRect NBH = cvRect(rIdx-1, tIdx-1, 3, 3);
+		cvGetSubRect(HBackUp, peakNBH, NBH);
 
-			// A "WTF" moment, as theta index is in the padding...
-			if(tIdx <= 0 || tIdx >= THETA_DIVS+1) {
-				break;
-			}
-
-			// Copying raw results
-			dst.symLines[p].numOfVotes		= maxVal;
-			dst.symLines[p].rIndexRaw		= rIdx;
-			dst.symLines[p].thetaIndexRaw	= tIdx;
-			
-			//  *** Sub-pixel localization of peak ***
-			// Note: Padding rows already wrapped around theta during voting
-			CvRect NBH = cvRect(rIdx-1, tIdx-1, 3, 3);
-			cvGetSubRect(HBackUp, peakNBH, NBH);
-
-			// Copying data to float array
-			for(i = 0; i < peakNBH->height; ++i) 
+		// Copying data to float array
+		for(i = 0; i < peakNBH->height; ++i) 
+		{
+			for(j = 0; j < peakNBH->width; ++j)
 			{
-				for(j = 0; j < peakNBH->width; ++j)
-				{
-					peakNBVals[3*i + j] = CV_MAT_VAL(peakNBH, float, i, j);
-				}
+				peakNBVals[3*i + j] = CV_MAT_VAL(peakNBH, float, i, j);
 			}
+		}
 
-			// Solving for peak
-			peakShift = cvAddonFindExtrema3x3_2D(peakNBVals, diff, hessian, shift);
+		// Solving for peak
+		peakShift = cvAddonFindExtrema3x3_2D(peakNBVals, diff, hessian, shift);
 
-			// Ignore refinement shift if it is too large (probably a bad hessian fit)
-			if(fabsf(peakShift[0]) >= 1.0f || fabsf(peakShift[1]) >= 1.0f) {
-				dst.symLines[p].rIndex		= (float)rIdx;
-				dst.symLines[p].thetaIndex	= (float)tIdx;
-			}
-			else {
-				// Adjusting peak location
-				dst.symLines[p].rIndex		= (float)rIdx + peakShift[0];
-				dst.symLines[p].thetaIndex	= (float)tIdx + peakShift[1];
-			}
+		// Ignore refinement shift if it is too large (probably a bad hessian fit)
+		if(fabsf(peakShift[0]) >= 1.0f || fabsf(peakShift[1]) >= 1.0f) {
+			dst.symLines[p].rIndex		= (float)rIdx;
+			dst.symLines[p].thetaIndex	= (float)tIdx;
+		}
+		else {
+			// Adjusting peak location
+			dst.symLines[p].rIndex		= (float)rIdx + peakShift[0];
+			dst.symLines[p].thetaIndex	= (float)tIdx + peakShift[1];
+		}
 
-			// Finding theta in radians, r in pixels
-			dst.symLines[p].r			= getPixelFromIndex(dst.symLines[p].rIndex);
-			dst.symLines[p].theta		= getRadiansFromIndex(dst.symLines[p].thetaIndex);
+		// Finding theta in radians, r in pixels
+		dst.symLines[p].r			= getPixelFromIndex(dst.symLines[p].rIndex);
+		dst.symLines[p].theta		= getRadiansFromIndex(dst.symLines[p].thetaIndex);
 
-			
-			// Suppressing Peak Neighbourhood by zeroing mask
-			bool wrapMaskTheta = false;
-			int r0 = (rIdx - rNBH) < 0 ? 0 : rIdx - rNBH;
-			int r1 = (rIdx + rNBH) > R_DIVS-1 ? R_DIVS-1 : rIdx + rNBH;
-			int t0 = tIdx - thetaNBH;
-			int t1 = tIdx + thetaNBH;
+		
+		// Suppressing Peak Neighbourhood by zeroing mask
+		bool wrapMaskTheta = false;
+		int r0 = (rIdx - rNBH) < 0 ? 0 : rIdx - rNBH;
+		int r1 = (rIdx + rNBH) > R_DIVS-1 ? R_DIVS-1 : rIdx + rNBH;
+		int t0 = tIdx - thetaNBH;
+		int t1 = tIdx + thetaNBH;
 
-			if(t0 <= 0 || t1 >= THETA_DIVS+1) wrapMaskTheta = true;
+		if(t0 <= 0 || t1 >= THETA_DIVS+1) wrapMaskTheta = true;
 
-			if(wrapMaskTheta) {
+		if(wrapMaskTheta) {
 //				// DEBUG
 //				cerr << "WRAP" << endl;
 
-				CvRect NBHSub0, NBHSub1;
+			CvRect NBHSub0, NBHSub1;
 
-				// Wrapping from 0 --> THETA_DIVS
-				// Note that wrapping theta also requires negating r (as r changes signs when theta -90 <--> +90)
-				if(t0 <= 0) {
-					int NBHWidth = r1-r0;
-					NBHSub0 = cvRect(r0, 0, NBHWidth, t1);
+			// Wrapping from 0 --> THETA_DIVS
+			// Note that wrapping theta also requires negating r (as r changes signs when theta -90 <--> +90)
+			if(t0 <= 0) {
+				int NBHWidth = r1-r0;
+				NBHSub0 = cvRect(r0, 0, NBHWidth, t1);
 
-					// When r0 ~= R_DIVS_2 - 0.5f (center), the suppression region is pretty much 
-					// being flipped across theta only. So, not worrying about -0.5f
-					r1 = R_DIVS - r1;
+				// When r0 ~= R_DIVS_2 - 0.5f (center), the suppression region is pretty much 
+				// being flipped across theta only. So, not worrying about -0.5f
+				r1 = R_DIVS - r1;
 
-					NBHSub1 = cvRect(r1, t0 + (THETA_DIVS - 1), NBHWidth, THETA_DIVS + 1);
-				}
-
-				if(t1 >= THETA_DIVS+1) {
-					NBHSub0 = cvRect(r0, t0, r1-r0, THETA_DIVS + 1);
-					NBHSub1 = cvRect(r0, 0, r1-r0, t1 - (THETA_DIVS - 1));
-				}
-
-				cvAddonDrawRectangle(HMask, NBHSub0, CV_RGB(0,0,0), CV_FILLED);
-				cvAddonDrawRectangle(HMask, NBHSub1, CV_RGB(0,0,0), CV_FILLED);
+				NBHSub1 = cvRect(r1, t0 + (THETA_DIVS - 1), NBHWidth, THETA_DIVS + 1);
 			}
-			else {
-				CvRect NBHSub = cvRect(r0, t0, r1-r0, t1-t0);
-				cvAddonDrawRectangle(HMask, NBHSub, CV_RGB(0,0,0), CV_FILLED);
+
+			if(t1 >= THETA_DIVS+1) {
+				NBHSub0 = cvRect(r0, t0, r1-r0, THETA_DIVS + 1);
+				NBHSub1 = cvRect(r0, 0, r1-r0, t1 - (THETA_DIVS - 1));
 			}
+
+			cvAddonDrawRectangle(HMask, NBHSub0, CV_RGB(0,0,0), CV_FILLED);
+			cvAddonDrawRectangle(HMask, NBHSub1, CV_RGB(0,0,0), CV_FILLED);
 		}
-		dst.numSym = p;
+		else {
+			CvRect NBHSub = cvRect(r0, t0, r1-r0, t1-t0);
+			cvAddonDrawRectangle(HMask, NBHSub, CV_RGB(0,0,0), CV_FILLED);
+		}
 	}
-
+	dst.numSym = p;
 }

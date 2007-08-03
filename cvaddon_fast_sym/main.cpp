@@ -51,7 +51,7 @@ int main()
 //	inEdge = cvLoadImage("test_sym_r_neg_300.PNG", 0);
 //	inEdge = cvLoadImage("test_sym_r_300.PNG", 0);
 	
-	cvAddonShowImageOnce(inEdge);
+	cvAddonShowImageOnce(inEdge, "Edge Image");
 
 #ifndef _DEBUG
 	FastTimer t0;
@@ -59,14 +59,14 @@ int main()
 	t0.getLoopTime();
 	for(i = 0 ; i < TRIALS; ++i) {
 #endif
-		symDetector.vote(inEdge, 25, 250);
+		symDetector.vote(inEdge, 25, 250, true, -25, 25);
 #ifndef _DEBUG
 	}
 	cerr << "Voting Took: " << t0.getLoopTime() / (float)TRIALS << endl;
 #endif
 
 	cvAddonShowImageOnce(symDetector.H);
-	cvAddonShowImageOnce(symDetector.HMask);
+//	cvAddonShowImageOnce(symDetector.HMask);
 
 	CvAddonFastSymResults symResults(25);
 	
@@ -74,14 +74,14 @@ int main()
 	t0.getLoopTime();
 	for(i = 0 ; i < TRIALS; ++i) {
 #endif	
-	symDetector.getResult(1, symResults, 10, 10, false);
+	symDetector.getResult(1, symResults, 10, 10, false, true, -25, 25);
 #ifndef _DEBUG
 	}
 	cerr << "Peak Find Took: " << t0.getLoopTime() / (float)TRIALS << endl;
 #endif
 
-	cvAddonShowImageOnce(symDetector.HBackUp);
-	cvAddonShowImageOnce(symDetector.HMask);
+	cvAddonShowImageOnce(symDetector.HBackUp, "Hough Backup");
+	cvAddonShowImageOnce(symDetector.HMask, "Hough Mask after finding Peaks");
 
 	for(int p = 0; p < symResults.numSym; ++p) 
 	{
