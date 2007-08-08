@@ -84,7 +84,7 @@ inline void cvAddonDrawPixels(IplImage *dst, CvPoint *pixels
 inline void cvAddonDrawPolarLine(IplImage *dst, const float &r, const float &theta
 	, const CvScalar &color, const int &thickness = 1)
 {
-	CvPoint xrPt, p0, p1;
+	CvPoint2D32f xrPt, p0, p1;
 
 	CV_FUNCNAME("cvAddonDrawPolarLine");
 
@@ -94,16 +94,16 @@ inline void cvAddonDrawPolarLine(IplImage *dst, const float &r, const float &the
 
 	cvAddonFindPolarLineEndPoints(cvGetSize(dst), r, theta, xrPt, p0, p1);
 
-	cvLine(dst, xrPt, p0, color, thickness);
-	cvLine(dst, xrPt, p1, color, thickness);
+	cvLine(dst, cvPointFrom32f(xrPt), cvPointFrom32f(p0), color, thickness);
+	cvLine(dst, cvPointFrom32f(xrPt), cvPointFrom32f(p1), color, thickness);
 
 #ifdef _DEBUG
 	// Draw end points
-	cvLine(dst, p0, p0, color, thickness*3);
-	cvLine(dst, p1, p1, color, thickness*3);
+	cvLine(dst, cvPointFrom32f(p0), cvPointFrom32f(p0), color, thickness*3);
+	cvLine(dst, cvPointFrom32f(p1), cvPointFrom32f(p1), color, thickness*3);
 
 	// Draw pivot point (perpendicular to line, connecting line to image center)
-	cvLine(dst, xrPt, xrPt, color, thickness*3, CV_AA);
+	cvLine(dst, cvPointFrom32f(xrPt), cvPointFrom32f(xrPt), color, thickness*3, CV_AA);
 #endif
 
 	__END__;

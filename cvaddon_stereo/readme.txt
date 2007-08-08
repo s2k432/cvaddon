@@ -1,0 +1,1 @@
+Folder contains various functions dealing with stereo images, especially those concering triangulation

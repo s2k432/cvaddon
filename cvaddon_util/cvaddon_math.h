@@ -60,7 +60,7 @@ inline void lowerUpper(const CvScalar& a, const CvScalar& b, CvScalar& lower, Cv
 // <xrPt> - point where r interects polar line
 // <p0>, <p1> - End points of polar line
 inline void cvAddonFindPolarLineEndPoints(const CvSize &size, const float &r, const float &theta
-										  , CvPoint &xrPt, CvPoint &p0, CvPoint &p1)
+										  , CvPoint2D32f &xrPt, CvPoint2D32f &p0, CvPoint2D32f &p1)
 {
 	int i;
 	float c_x, c_y;	// Image center
@@ -103,7 +103,7 @@ inline void cvAddonFindPolarLineEndPoints(const CvSize &size, const float &r, co
 	}
 	min_d -= 2;
 
-	p0 = cvPoint( cvRound(-min_d * sin_th + x_r), cvRound(min_d * cos_th + y_r) );
+	p0 = cvPoint2D32f( -min_d * sin_th + x_r, min_d * cos_th + y_r );
 
 
 	if(sin_th != 0) {
@@ -123,9 +123,9 @@ inline void cvAddonFindPolarLineEndPoints(const CvSize &size, const float &r, co
 	}
 	min_d -= 2;
 
-	p1 = cvPoint( cvRound(min_d * sin_th + x_r), cvRound(-min_d * cos_th + y_r) );
+	p1 = cvPoint2D32f( min_d * sin_th + x_r, -min_d * cos_th + y_r );
 	
-	xrPt = cvPoint( cvRound(x_r), cvRound(y_r) );
+	xrPt = cvPoint2D32f( x_r, y_r );
 }
 
 
