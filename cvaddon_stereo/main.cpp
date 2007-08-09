@@ -101,9 +101,6 @@ int main()
 	IplImage *leftEdge = cvCloneImage(leftImg);	
 	IplImage *rightEdge = cvCloneImage(rightImg);
 
-	// Testing
-//	whShowImageOnce(leftEdge);
-//	whShowImageOnce(rightEdge);
 
 	CvSize imgSize = cvGetSize(leftEdge);
 	float rDivs = sqrtf(leftImg->width*leftImg->width + leftImg->height*leftImg->height) + 1;
