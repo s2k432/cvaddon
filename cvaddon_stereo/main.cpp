@@ -7,6 +7,7 @@ using std::endl;
 
 #include "cv.h"
 
+#include "cvaddon_geometry3D.h"
 #include "cvaddon_stereo_sym.h"
 #include "cvaddon_stereo_calib.h"
 
@@ -25,15 +26,22 @@ void cleanEdgePixelsFromBorder(IplImage *srcEdge)
 
 int main()
 {
-	string path = "F:/_WORK/_PhD/code_and_data/symmetry/_matlab/stereo/stereo_data_images/";
+	string path = "./_MATLAB_/";	
 	string stereoDataFilename = "Calib_Results_stereo.mat";
-	string leftCameraDataFilename = "left_Calib_Results.mat";
-	string rightCameraDataFilename = "right_Calib_Results.mat";
+	string leftCameraDataFilename = "Calib_Results_left.mat";
+	string rightCameraDataFilename = "Calib_Results_right.mat";
 
+//	string path = "F:/_WORK/_PhD/code_and_data/symmetry/_matlab/stereo/stereo_data_images/";
+//	string stereoDataFilename = "Calib_Results_stereo.mat";
+//	string leftCameraDataFilename = "left_Calib_Results.mat";
+//	string rightCameraDataFilename = "right_Calib_Results.mat";
+
+
+	// Loading Stereo Calibration data (intrinsics and extrinsics) obtained using MATLAB Calib. Toolbox
+	// into C++ structures
 	CvAddonStereoParameters stereoParams;
-
 	int stat;
-	bool LOAD_INDIVIDUAL_CAMERAS = true;
+	bool LOAD_INDIVIDUAL_CAMERAS = false;
 	stat = fillStereoDataFromFile( (path+stereoDataFilename).c_str(), stereoParams, LOAD_INDIVIDUAL_CAMERAS);
 
 	// Loading individual Cameras
@@ -43,11 +51,16 @@ int main()
 	}
 	printStereoData(stereoParams);
 
-//	// Cup 03 not very accuratate, and has 4 matching 3D lines due to horizontal lines
-	const char* leftImgName = "F:/_WORK/_PhD/code_and_data/symmetry/_matlab/stereo/stereo_data_images/cup_left_01.bmp";
-	const char* rightImgName = "F:/_WORK/_PhD/code_and_data/symmetry/_matlab/stereo/stereo_data_images/cup_right_01.bmp";
+	// NEW data from arm-camera experiment setup
+	const char* leftImgName = "./_MATLAB_/test_left.bmp";
+	const char* rightImgName = "./_MATLAB_/test_right.bmp";
 
-	// Cup 02 not detected due to edge noise and horizontal lines. Too many lines in 3D matching in general
+
+	// Cup 03 not very accuratate, and has 4 matching 3D lines due to horizontal lines
+//	const char* leftImgName = "F:/_WORK/_PhD/code_and_data/symmetry/_matlab/stereo/stereo_data_images/cup_left_01.bmp";
+//	const char* rightImgName = "F:/_WORK/_PhD/code_and_data/symmetry/_matlab/stereo/stereo_data_images/cup_right_01.bmp";
+
+//	// Cup 02 not detected due to edge noise and horizontal lines. Too many lines in 3D matching in general
 //	const char* leftImgName = "F:/_WORK/_PhD/code_and_data/symmetry/_matlab/stereo/stereo_data_images/multi_left_02.bmp";
 //	const char* rightImgName = "F:/_WORK/_PhD/code_and_data/symmetry/_matlab/stereo/stereo_data_images/multi_right_02.bmp";
 
@@ -88,14 +101,14 @@ int main()
 
 	// Canny
 	const double CANNY_TH1 = 30;
-	const double CANNY_TH2 = 60;
+	const double CANNY_TH2 = 90;
 	
 	// Fast Sym Detectionn
-	const int MAX_DIST = 250;
-	const int MIN_DIST = 5;
-	const float SAMPLE_RATIO = 1.0f;
-	const int MIN_ANGLE = 65;	// These wrap around, so min can be > max
-	const int MAX_ANGLE = -65;
+	const int MAX_DIST = 200;
+	const int MIN_DIST = 20;
+	//const float SAMPLE_RATIO = 1.0f;
+	const int MIN_ANGLE = -15;
+	const int MAX_ANGLE = 15;
 
 
 	IplImage *leftEdge = cvCloneImage(leftImg);	
@@ -108,30 +121,38 @@ int main()
 	CvAddonFastSymDetector fastSym(imgSize, cvSize(rDivs, thDivs));
 
 	// Fast Sym Peakfind
-	const int NUM_PEAKS_FOUND = 10;
+	const int NUM_PEAKS_FOUND = 5;
 	const float PEAK_FIND_THRESH =  0.25f;
 	const int R_SUPP_SIZE = 10;
 	const int TH_SUPP_SIZE = 10;
 
-	// Calibration (table) plane
-	PlaneHessian3D<float> calibPlane = {0.00021343422080f, 0.00251180346276f, 0.00162225558579f, -0.99999550677791f};
+	// Calibration (table) plane wrt Right camera (from fitplane MATLAB function in stereo_2D_to_3D.m)
+	PlaneHessian3D<float> calibPlane = {0.00006052735995f, 0.00193667471661f, 0.00145470661978f, -0.99999706472376f};
+	
+	// Old plane
+	//{0.00021343422080f, 0.00251180346276f, 0.00162225558579f, -0.99999550677791f};
 
+    
 	// TODO vector pre-allocation needs tidying up (can have seg fault if not allocated with enough mem)
 	vector< Line3D<float> > symLines3D(30);
 
-
+	// Edge Detection
 	cvCanny(leftImg, leftEdge, CANNY_TH1, CANNY_TH2);	
 	cvCanny(rightImg, rightEdge, CANNY_TH1, CANNY_TH2);
 	cleanEdgePixelsFromBorder(leftEdge);
 	cleanEdgePixelsFromBorder(rightEdge);
 
-	CvAddonFastSymResults leftSymResults(25);
-	fastSym.vote(leftEdge, 5, 250, true, -25, 25);				
-	fastSym.getResult(NUM_PEAKS_FOUND, leftSymResults, R_SUPP_SIZE, TH_SUPP_SIZE, false, true, -25, 25);
+	// DEBUG
+	cvAddonShowImageOnce(leftEdge);
+	cvAddonShowImageOnce(rightEdge);
 
-	CvAddonFastSymResults rightSymResults(25);
-	fastSym.vote(rightEdge, 5, 250, true, -25, 25);	
-	fastSym.getResult(NUM_PEAKS_FOUND, rightSymResults, R_SUPP_SIZE, TH_SUPP_SIZE, false, true, -25, 25);
+	CvAddonFastSymResults leftSymResults(NUM_PEAKS_FOUND);
+	fastSym.vote(leftEdge, MIN_DIST, MAX_DIST, true, MIN_ANGLE, MAX_ANGLE);				
+	fastSym.getResult(NUM_PEAKS_FOUND, leftSymResults, R_SUPP_SIZE, TH_SUPP_SIZE, false, true, MIN_ANGLE, MAX_ANGLE);
+
+	CvAddonFastSymResults rightSymResults(NUM_PEAKS_FOUND);
+	fastSym.vote(rightEdge, MIN_DIST, MAX_DIST, true, MIN_ANGLE, MAX_ANGLE);	
+	fastSym.getResult(NUM_PEAKS_FOUND, rightSymResults, R_SUPP_SIZE, TH_SUPP_SIZE, false, true, MIN_ANGLE, MAX_ANGLE);
 
 	int m;
 	for(m = 0; m < leftSymResults.numSym; ++m)
@@ -160,6 +181,14 @@ int main()
 		cerr << symLines3D[i].x1.x << ",";
 		cerr << symLines3D[i].x1.y << ",";
 		cerr << symLines3D[i].x1.z << endl;
+
+		// Finding intersect with table plane
+		Point3D<float> intersectPoint;
+		int inter = linePlaneIntersect(symLines3D[i], calibPlane, intersectPoint);
+
+		cerr << "SymLine-Table intersect: ";
+		printPoint3D(intersectPoint);
+		cerr << endl;
 	}
 
 

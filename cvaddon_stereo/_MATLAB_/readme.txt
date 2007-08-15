@@ -1,0 +1,3 @@
+This folder contains various MATLAB scripts and related data (calibration images, checkerboard patterns etc) used in the calibration and testing of stereo camera pairs. This work begun in late July 2007 and includes previous work submitted to ACRA 2006, such as the plane fitting code in matlab, and stereo calibration code.
+
+Use find_arm_cam_trans.m to find Rotation and Transformation matrices to get from the RIGHT CAMERA frame to the base frame of the robot. The calibration grid must be placed at a known location, as described in the MATLAB code. The calibration is done via arm_cam_calib.m, which describes the robot manipulator's coordinate frame.

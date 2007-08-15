@@ -25,14 +25,19 @@ using std::endl;
 using std::vector;
 using std::pair;
 
-// Triangulation constants and thresholds
+// Allowable symmetry angles given Table Plane
 static const float MAX_ANGLE_DEVIATION = 0.17453292519943f;	// 10 degrees deviation from vertical allowed
 //static const float MAX_ANGLE_DEVIATION = 0.08726646259972f;	// 5 degrees deviation from vertical allowed
 
+// Distance Threholds for considering 3D symmetry axes as being valid
 static const float MIN_TRIANGULATION_DISTANCE = 300.0f;		// Minimum distance considered
-static const float MAX_TRIANGULATION_DISTANCE = 1250.0f;		// Max distance considered
+static const float MAX_TRIANGULATION_DISTANCE = 1500.0f;		// Max distance considered
 
-static const float SYM_Z = MAX_TRIANGULATION_DISTANCE;		// Distance used to generate 3D triangular planes
+// Distance used to generate 3D triangular planes to find left-right sym plane intersections
+static const float SYM_Z = MAX_TRIANGULATION_DISTANCE;		
+
+// NEW - Similarity Threshold (proportional ratio) to 
+static const float SYM_SIM_RATIO = 0.75f;
 
 //inline void findSymEndPoints(const CvPoint& peak, const FastSymDetector &fastSym, CvPoint2D32f &pt1, CvPoint2D32f &pt2)
 //{
@@ -226,6 +231,20 @@ int cvAddonTriangluateSymLines(CvAddonFastSymResults &leftSymResults
 				float dist = sqrtf(intersect.x*intersect.x + intersect.y*intersect.y + intersect.z*intersect.z);
 				if(dist > MAX_TRIANGULATION_DISTANCE || dist < MIN_TRIANGULATION_DISTANCE) {
 					continue;
+				}				
+
+				// New - Checking to see if symmetry lines are of roughly equal strength
+				int wL, wR;
+
+				wL = leftSymResults.symLines[i].numOfVotes;
+				wR = rightSymResults.symLines[j].numOfVotes;
+				
+				if(wL > wR && wL * SYM_SIM_RATIO > wR) continue;
+				else if(wR > wL && wR * SYM_SIM_RATIO > wL) continue;
+				// DEBUG
+				else {
+					cerr << "wL: " << wL << endl;;
+					cerr << "wR: " << wR << endl;;
 				}
 				
 				// ============ Storing Result ===============

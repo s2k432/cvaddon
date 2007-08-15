@@ -1,0 +1,14 @@
+Triangulation of Calibration Grid corners
+1) Run Stereo_2D_to_3D.m
+2) Click outside corners in the same order for left and right image (press a key after clicking the four corners for each image)
+3) Returns plot of grid corners, and relevant data are in matrices
+
+
+Points of Note:
+---
+1) Coordinate system is centered on Left Camera
+
+
+Hardware Setup
+---
+1) Calib grid's centre (pen x=.30, y=0, z = -0.145 (touching table with pen)) is the 9th corner from the left and 6th from the bottom.
