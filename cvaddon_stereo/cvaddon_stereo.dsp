@@ -42,7 +42,7 @@ RSC=rc.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" /YX /FD /c
-# ADD CPP /nologo /W3 /GX /O2 /I "F:\_WORK\_PhD\_svn_code\cvaddon\cvaddon_image" /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" /YX /FD /c
+# ADD CPP /nologo /W3 /GX /O2 /I "F:\_WORK\_PhD\_svn_code\cvaddon\cvaddon_image" /I "F:\_WORK\_PhD\_svn_code\cvaddon\cvaddon_util" /D "WIN32" /D "NDEBUG" /D "_CONSOLE" /D "_MBCS" /YX /FD /c
 # ADD BASE RSC /l 0xc09 /d "NDEBUG"
 # ADD RSC /l 0xc09 /d "NDEBUG"
 BSC32=bscmake.exe
@@ -99,7 +99,16 @@ SOURCE=.\cvaddon_stereo_sym.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\cvaddon_stereo_tri.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\main.cpp
+# PROP Exclude_From_Build 1
+# End Source File
+# Begin Source File
+
+SOURCE=.\test_tri.cpp
 # End Source File
 # End Group
 # Begin Group "Header Files"
@@ -128,6 +137,10 @@ SOURCE=.\cvaddon_stereo_geometry.h
 # Begin Source File
 
 SOURCE=.\cvaddon_stereo_sym.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\cvaddon_stereo_tri.h
 # End Source File
 # Begin Source File
 
