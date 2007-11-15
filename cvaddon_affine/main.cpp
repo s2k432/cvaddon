@@ -16,7 +16,7 @@
 const float R = 9.97502f;
 const float TH = -0.0863508f;
 
-void mirrorMask(const IplImage *mask, const float& r, IplImage* mirroredMask
+int mirrorMask(const IplImage *mask, const float& r, IplImage* mirroredMask
 	, const float& maxDist = 250, const bool& fillGaps = true);
 
 int main()
@@ -32,7 +32,6 @@ int main()
 	IplImage* BGR_rot = cvCreateImage(imgSize, gray->depth, 3);
 
 	cvAddonShowImageOnce(mask, "MOTION MASK");
-	cvAddonShowImageOnce(gray, "INPUT");
 
 //	cvCvtColor(mask, BGR, CV_GRAY2BGR);
 //	cvAddonDrawPolarLine(BGR, R, TH, CV_RGB(0,255,0));
@@ -44,20 +43,45 @@ int main()
 
 	cvAddonShowImageOnce(mask_rot);
 
-	mirrorMask(mask_rot, R, mirroredMask);
+	int topRowOfObj = mirrorMask(mask_rot, R, mirroredMask);
+
+	CvPoint2D32f centre = cvPoint2D32f( ((float)mirroredMask->width-1) / 2.0f, ((float)mirroredMask->height-1) / 2.0f );
+	cvCircle( mirroredMask, cvPoint(R + centre.x, topRowOfObj), 3, CV_RGB(70,70,70), CV_FILLED, CV_AA);
 
 	cvAddonShowImageOnce(mirroredMask);
 
-	cvCvtColor(gray, BGR, CV_GRAY2BGR);
-	cvAddonDrawPolarLine(BGR, R, TH, CV_RGB(0,255,0));
-	cvAddonShowImageOnce(BGR, "RESULTS");
+//	cvCvtColor(gray, BGR, CV_GRAY2BGR);
+//	cvAddonDrawPolarLine(BGR, R, TH, CV_RGB(0,255,0));
+//	cvAddonShowImageOnce(BGR, "RESULTS");
+
+	cvAddonShowImageOnce(gray, "INPUT IMAGE");
 
 	rotator.rot(mirroredMask, -TH, mask);
 	cvAnd(mask, gray, gray);
 
+	
+	CvMat* tmp = cvCreateMat(3,1,CV_64FC1);
+	CvMat* topOfObj = cvCreateMat(2,1,CV_64FC1);
+	CV_MAT_ELEM(*tmp, double, 0, 0) = R + centre.x;
+	CV_MAT_ELEM(*tmp, double, 1, 0) = (double)topRowOfObj;
+	CV_MAT_ELEM(*tmp, double, 2, 0) = 1.0;
+
+	
+	CvMat *rotMat = cvCreateMat(2, 3, CV_64FC1);
+	
+	cv2DRotationMatrix( centre, -TH / CV_PI * 180.0f, 1.0, rotMat);
+	cvMatMul(rotMat, tmp, topOfObj);
+
+	CvPoint2D32f topOfObjPt = cvPoint2D32f( CV_MAT_ELEM(*topOfObj, double, 0, 0), CV_MAT_ELEM(*topOfObj, double, 1, 0) );
+
+	cerr << "TOP OF OBJECT: " <<  topOfObjPt.x << ", " << topOfObjPt.y << endl;
+	
 	cvCvtColor(gray, BGR, CV_GRAY2BGR);
-	cvAddonDrawPolarLine(BGR, R, TH, CV_RGB(0,255,0));
+	cvAddonDrawPolarLine(BGR, R, TH, CV_RGB(0,255,0), 3, CV_AA);
+	cvCircle( BGR, cvPointFrom32f(topOfObjPt), 3, CV_RGB(0,0,255), CV_FILLED, CV_AA);
 	cvAddonShowImageOnce(BGR, "RESULTS");
+
+
 
 //	rotator.rot(BGR, TH, BGR_rot);
 	
@@ -73,7 +97,7 @@ int main()
 	return 0;
 }
 
-void mirrorMask(const IplImage *mask, const float& r, IplImage* mirroredMask
+int mirrorMask(const IplImage *mask, const float& r, IplImage* mirroredMask
 	, const float& maxDist, const bool& fillGaps)
 {
 	const uchar MASK_MAX_VAL = 255;
@@ -111,6 +135,22 @@ void mirrorMask(const IplImage *mask, const float& r, IplImage* mirroredMask
 		}
 	}
 
+	// Finding top of object
+	int firstNonZeroRow = -1;
+	for(i = 0; i < imgSize.height; ++i)
+	{
+		uchar *m_ptr = (uchar*)(mirroredMask->imageData + i*mirroredMask->widthStep);
+		for(j = LHS; j < mid; ++j)
+		{
+			if(m_ptr[j]) {
+				firstNonZeroRow = i;
+				break;
+			}
+		}
+
+		if(firstNonZeroRow != -1) break;
+	}
+
 	// 2nd Pass to fill gaps
 	if(fillGaps) {
 		for(i = 0; i < imgSize.height; ++i)
@@ -130,4 +170,6 @@ void mirrorMask(const IplImage *mask, const float& r, IplImage* mirroredMask
 			}
 		}
 	}
+
+	return firstNonZeroRow;
 }
