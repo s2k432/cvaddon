@@ -137,18 +137,14 @@ int mirrorMask(const IplImage *mask, const float& r, IplImage* mirroredMask
 
 	// Finding top of object
 	int firstNonZeroRow = -1;
+	int tmp  = cvRound(mid);
 	for(i = 0; i < imgSize.height; ++i)
 	{
 		uchar *m_ptr = (uchar*)(mirroredMask->imageData + i*mirroredMask->widthStep);
-		for(j = LHS; j < mid; ++j)
-		{
-			if(m_ptr[j]) {
-				firstNonZeroRow = i;
-				break;
-			}
+		if(m_ptr[tmp]) {
+			firstNonZeroRow = i;
+			break;
 		}
-
-		if(firstNonZeroRow != -1) break;
 	}
 
 	// 2nd Pass to fill gaps
