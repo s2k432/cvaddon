@@ -320,9 +320,9 @@ void CvAddonFastSymDetector::getResult(const int &maxPeaksFound, CvAddonFastSymR
 			MRow += MStep;
 		}
 
-#ifdef _DEBUG
-		cvAddonShowImageOnce(HMask, "Hough Mask with Angle Limits");
-#endif
+//#ifdef _DEBUG
+//		cvAddonShowImageOnce(HMask, "Hough Mask with Angle Limits");
+//#endif
 	}
 
 
