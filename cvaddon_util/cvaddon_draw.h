@@ -82,7 +82,7 @@ inline void cvAddonDrawPixels(IplImage *dst, CvPoint *pixels
 // Draws a straight line defined in polar form relative to the 
 // center of the image <dst>
 inline void cvAddonDrawPolarLine(IplImage *dst, const float &r, const float &theta
-	, const CvScalar &color, const int &thickness = 1, const int &line_type = 8)
+	, const CvScalar &color, const int &thickness = 1, const int& lineType = 8)
 {
 	CvPoint2D32f xrPt, p0, p1;
 
@@ -94,17 +94,17 @@ inline void cvAddonDrawPolarLine(IplImage *dst, const float &r, const float &the
 
 	cvAddonFindPolarLineEndPoints(cvGetSize(dst), r, theta, xrPt, p0, p1);
 
-	cvLine(dst, cvPointFrom32f(xrPt), cvPointFrom32f(p0), color, thickness, line_type);
-	cvLine(dst, cvPointFrom32f(xrPt), cvPointFrom32f(p1), color, thickness, line_type);
+	cvLine(dst, cvPointFrom32f(xrPt), cvPointFrom32f(p0), color, thickness, lineType);
+	cvLine(dst, cvPointFrom32f(xrPt), cvPointFrom32f(p1), color, thickness, lineType);
 
-#ifdef _DEBUG
-	// Draw end points
-	cvLine(dst, cvPointFrom32f(p0), cvPointFrom32f(p0), color, thickness*3, line_type);
-	cvLine(dst, cvPointFrom32f(p1), cvPointFrom32f(p1), color, thickness*3, line_type);
-
-	// Draw pivot point (perpendicular to line, connecting line to image center)
-	cvLine(dst, cvPointFrom32f(xrPt), cvPointFrom32f(xrPt), color, thickness*3, line_type);
-#endif
+//#ifdef _DEBUG
+//	// Draw end points
+//	cvLine(dst, cvPointFrom32f(p0), cvPointFrom32f(p0), color, thickness*3, lineType);
+//	cvLine(dst, cvPointFrom32f(p1), cvPointFrom32f(p1), color, thickness*3, lineType);
+//
+//	// Draw pivot point (perpendicular to line, connecting line to image center)
+//	cvLine(dst, cvPointFrom32f(xrPt), cvPointFrom32f(xrPt), color, thickness*3, CV_AA, lineType);
+//#endif
 
 	__END__;
 }
@@ -134,6 +134,31 @@ inline void cvAddonFillBorder(IplImage *dst, const int &width, const CvScalar &c
 	cvRectangle(dst, cvPoint(bw,h-bw), cvPoint(w-bw-1, h-1), color, CV_FILLED);	// "Bottom" border
 
 	__END__;
+}
+
+// Draws an arrow from start to end, with the arrow head sized based on
+// <arrowLenRatio>, which should be between 0 and 1.0f
+inline void cvAddonDrawArrow(IplImage *dst
+	, const CvPoint& start, const CvPoint& end, const CvScalar colour
+	, const float& arrowLenRatio = 0.2f)
+{
+	// Marking start and end locations with circles
+	cvCircle(dst, start, 3, colour, CV_FILLED, CV_AA);
+
+	// Drawing arrow
+	CvPoint2D32f vec0 = cvPoint2D32f(end.x-start.x, end.y-start.y);
+	CvPoint2D32f vec1 = cvPoint2D32f(-vec0.y, vec0.x);
+	CvPoint2D32f vec2 = cvPoint2D32f(vec0.y, -vec0.x);
+
+	CvPoint poly[3];
+	CvPoint mid = cvPoint( start.x + cvRound( (float)(end.x - start.x)*(1.0f - arrowLenRatio) )
+		, start.y + cvRound( (float)(end.y - start.y)*(1.0f - arrowLenRatio) ) );
+	poly[0] = cvPoint( cvRound((float)mid.x + vec1.x * arrowLenRatio), cvRound((float)mid.y + vec1.y * arrowLenRatio));
+	poly[1] = cvPoint( cvRound((float)mid.x + vec2.x * arrowLenRatio), cvRound((float)mid.y + vec2.y * arrowLenRatio));
+	poly[2] = end;
+
+	cvFillConvexPoly( dst, poly, 3, colour, CV_AA);		// Arrowhead
+	cvLine(dst, start, mid, colour, 2, CV_AA);		// Arrowline						   
 }
 
 #endif

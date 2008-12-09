@@ -15,6 +15,36 @@
 // dst fn(src, params)
 ////////////////////////////////////////////////////////////
 
+// CvPoint3D32f .* scale == > CvMat
+// Assumes single channel float CvMat
+template <typename PointType>
+inline void cvAddonPoint3D32f2Mat(const PointType& pt, CvMat* mat, const float& scale = 1.0f)
+{
+	// Transforming Intersection Point to Arm Coordinate Frame
+	CV_MAT_ELEM(*mat, float, 0, 0) = pt.x * scale;
+	CV_MAT_ELEM(*mat, float, 1, 0) = pt.y * scale;
+	CV_MAT_ELEM(*mat, float, 2, 0) = pt.z * scale;
+}
+
+inline void cvAddonPoint2D32f2Mat(const CvPoint2D32f& pt, CvMat* mat, const float& scale = 1.0f)
+{
+	// Transforming Intersection Point to Arm Coordinate Frame
+	CV_MAT_ELEM(*mat, float, 0, 0) = pt.x * scale;
+	CV_MAT_ELEM(*mat, float, 1, 0) = pt.y * scale;
+}
+
+inline void cvAddonMat2Point2D32f(CvMat* mat, CvPoint2D32f& pt, const float& scale = 1.0f)
+{
+	pt.x = CV_MAT_ELEM(*mat, float, 0, 0);
+	pt.y = CV_MAT_ELEM(*mat, float, 1, 0);
+}
+
+inline void cvAddonMat2Point3D32f(CvMat* mat, CvPoint3D32f& pt, const float& scale = 1.0f)
+{
+	pt.x = CV_MAT_ELEM(*mat, float, 0, 0);
+	pt.y = CV_MAT_ELEM(*mat, float, 1, 0);
+	pt.z = CV_MAT_ELEM(*mat, float, 2, 0);
+}
 
 
 // Copies array <arr> contents to SINGLE CHANNEL image <img>

@@ -1,5 +1,4 @@
-#ifndef _CVADDON_PRINT_H
-#define _CVADDON_PRINT_H
+#pragma once
 
 ////////////////////////////////////////////////////////////
 //                 CvAddon Printing Functions
@@ -17,9 +16,20 @@
 #include <iostream>
 #include <cv.h>
 
+
 inline std::ostream& operator<< (std::ostream &o, const CvPoint &p)
 {
+	return o << "[" << p.x << ", " << p.y << "]";
+}
+
+inline std::ostream& operator<< (std::ostream &o, const CvPoint2D32f &p)
+{
 	return o << "{" << p.x << ", " << p.y << "}";
+}
+
+inline std::ostream& operator<< (std::ostream &o, const CvPoint3D32f &p)
+{
+	return o << "{" << p.x << ", " << p.y << ", " << p.z << "}";
 }
 
 
@@ -34,7 +44,6 @@ inline std::ostream& operator<< (std::ostream &o, const CvRect &r)
 }
 
 // Only use this for small matrices!
-// UNTESTED O_O
 inline std::ostream& operator<< (std::ostream &o, const CvMat *m)
 {
 	int i, j;
@@ -49,5 +58,3 @@ inline std::ostream& operator<< (std::ostream &o, const CvMat *m)
 	}
 	return o;
 }
-
-#endif

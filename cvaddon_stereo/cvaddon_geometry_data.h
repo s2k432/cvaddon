@@ -1,4 +1,5 @@
 #pragma once
+
 // Templated structures for geometry, and misc.
 // functions to convert between them
 

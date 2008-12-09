@@ -48,6 +48,21 @@ void printCameraData(const CvAddonCameraIntrinsics& param);
 void printStereoData(const CvAddonStereoParameters &param);
 
 
+
+// Utility function to copy MATLAB data to a variable, including error checks
+inline bool copyMatlabData(MATFile *mfile, const char* varName, double *dst, const int& size)
+{
+	mxArray *tmp = matGetVariable(mfile, varName);
+	if(tmp == NULL)  return false;
+
+	double *data = mxGetPr(tmp);
+	if(data == NULL) return false;
+
+	memcpy(dst, data, sizeof(double)*size);
+	mxDestroyArray(tmp);	
+	return true;
+}
+
 // Normalizes 2D locations of pixels given camera instrinsics
 // Based on normalize.m and comp_distortion_oulu.m from 
 // the MATLAB calibration toolbox

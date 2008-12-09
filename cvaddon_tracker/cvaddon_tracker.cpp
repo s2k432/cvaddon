@@ -1,20 +1,43 @@
 #include "cvaddon_tracker.h"
 
-const unsigned int NUM_KF_STATE = 6;
-const unsigned int NUM_KF_MEASUREMENT = 2;
+#include "../cvaddon_util/cvaddon_draw.h"					// Visualization of Tracking Results
 
 #include <iostream>
 using std::cerr;
 using std::endl;
 
+// Number of standard deviations used in providing predicted r and theta ranges
+static const float NUM_DEV = 3.0f;
+
 // Measurement Error
 static const float R[NUM_KF_MEASUREMENT*NUM_KF_MEASUREMENT] = 
 {
-	9.0f, 0,
-	0, 	0.0027f //9.0f
+	9.0f,		0,
+	0, 		0.0027f
 };
+const float R_SCALE = 1.0f;
+
+// System Model Error (Plant Error)
+static const float Q[NUM_KF_STATE*NUM_KF_STATE] = 
+{
+	0.01,		0,			0,		0,			0,		0,
+	0,			0.00003,	0,		0,			0,		0,
+	0,			0,			0.1,	0,			0,		0,
+	0,			0,			0,		0.0002f,	0,		0,
+	0,			0,			0,		0,			0.1,	0,
+	0,			0,			0,		0,			0,		0.0002f
+};
+const float Q_SCALE = 1.0f;
 
 // System Model (Plant)
+//static const float A[NUM_KF_STATE*NUM_KF_STATE] = 
+//{	
+//	1, 0, 1, 0,
+//	0, 1, 0, 1,
+//	0, 0, 1, 0,
+//	0, 0, 0, 1
+//};
+
 static const float A[NUM_KF_STATE*NUM_KF_STATE] = 
 {	
 	1, 0, 1, 0, 0.5, 0,
@@ -24,18 +47,6 @@ static const float A[NUM_KF_STATE*NUM_KF_STATE] =
 	0, 0, 0, 0, 1, 0,
 	0, 0, 0, 0, 0, 1
 };
-
-// System Model Error (Plant Error)
-static const float Q[NUM_KF_STATE*NUM_KF_STATE] = 
-{
-	0.01,		0,			0,		0,			0,		0,
-	0,		0.00003,	0,		0,			0,		0,
-	0,		0,			0.1,		0,			0,		0,
-	0,		0,			0,		0.0002f,	0,		0,
-	0,		0,			0,		0,			0.1,		0,
-	0,		0,			0,		0,			0,		0.0002f
-};
-
 
 
 CvAddonSymmetryTracker :: CvAddonSymmetryTracker()
@@ -75,14 +86,20 @@ void CvAddonSymmetryTracker :: init(CvMat* startingState)
 	cvCopy(startingState, kalman->state_post);
 
 	memcpy( kalman->transition_matrix->data.fl, A, sizeof(A));			// A
-	memcpy ( kalman->measurement_noise_cov->data.fl, R, sizeof(R));		// R
-	memcpy( kalman->process_noise_cov->data.fl, Q, sizeof(Q) );			// Q		
 	cvSetIdentity( kalman->measurement_matrix, cvRealScalar(1) );		// H
 	cvSetIdentity( kalman->error_cov_post, cvRealScalar(1));			// P
+
+	memcpy ( kalman->measurement_noise_cov->data.fl, R, sizeof(R));		// R
+	memcpy( kalman->process_noise_cov->data.fl, Q, sizeof(Q) );			// Q		
+
+	// Testing - tweaking Q and R values
+	cvScale(kalman->process_noise_cov, kalman->process_noise_cov, R_SCALE);
+	cvScale(kalman->measurement_noise_cov, kalman->measurement_noise_cov, Q_SCALE);
 }
 
 
-CvAddonSymmetryTrackerEstimate CvAddonSymmetryTracker :: predict(float& minTheta, float& maxTheta) 
+CvAddonSymmetryTrackerEstimate CvAddonSymmetryTracker :: predict(float& minTheta, float& maxTheta
+	, float& minR, float& maxR) 
 {
 	CvAddonSymmetryTrackerEstimate estimate;
 	cvKalmanPredict(kalman);
@@ -98,6 +115,28 @@ CvAddonSymmetryTrackerEstimate CvAddonSymmetryTracker :: predict(float& minTheta
 
 
 	predictThetaRange(minTheta, maxTheta);
+	predictRRange(minR, maxR);
+
+	estimate.r = CV_MAT_ELEM(*(kalman->state_pre), float, 0, 0);
+	estimate.theta = CV_MAT_ELEM(*(kalman->state_pre), float, 1, 0);
+
+	return estimate;
+}
+
+// Overloaded version - doesn't provides min/max values
+CvAddonSymmetryTrackerEstimate CvAddonSymmetryTracker :: predict()
+{
+	CvAddonSymmetryTrackerEstimate estimate;
+	cvKalmanPredict(kalman);
+
+	// Validation Gate Calculations
+	// (H*P_)
+	cvGEMM( kalman->measurement_matrix, kalman->error_cov_pre
+		, 1 ,NULL, 0, H_times_P, 0);
+
+	// S = (H*P_)*H' + R
+	cvGEMM(H_times_P, kalman->measurement_matrix
+		, 1 ,kalman->measurement_noise_cov, 1, S, CV_GEMM_B_T);		
 
 	estimate.r = CV_MAT_ELEM(*(kalman->state_pre), float, 0, 0);
 	estimate.theta = CV_MAT_ELEM(*(kalman->state_pre), float, 1, 0);
@@ -122,8 +161,12 @@ CvAddonSymmetryTrackerEstimate CvAddonSymmetryTracker :: update(const CvAddonFas
 		cvKalmanCorrect(kalman, newMeasurement);
 	}
 	else {
+		//cerr << "CvAddonSymmetryTracker::update(): No Valid Measurements!" << endl;
+	
 		cvCopy(kalman->state_pre, kalman->state_post);
 	}
+
+	//cerr << "CvAddonSymmetryTracker::update(): Min Error is " << minError << endl;
 
 	estimate.r = CV_MAT_ELEM(*(kalman->state_post), float, 0, 0);
 	estimate.theta = CV_MAT_ELEM(*(kalman->state_post), float, 1, 0);
@@ -132,12 +175,10 @@ CvAddonSymmetryTrackerEstimate CvAddonSymmetryTracker :: update(const CvAddonFas
 }
 
 
-
-// Gets 3-standard-deviation predicted range for r,theta 
+// Gets 3-standard-deviation predicted range for theta 
 // RUN predict() BEFORE running this!!!
 void CvAddonSymmetryTracker :: predictThetaRange(float& thMin, float& thMax) 
 {
-	const float NUM_DEV = 3.0f;
 	float thRange = sqrtf( CV_MAT_ELEM(*S, float, 1, 1) ) * NUM_DEV;		
 	float thPre = CV_MAT_ELEM(*(kalman->state_pre), float, 1, 0);
 
@@ -145,6 +186,20 @@ void CvAddonSymmetryTracker :: predictThetaRange(float& thMin, float& thMax)
 
 	thMin = thPre - thRange;
 	thMax = thPre + thRange;
+}
+
+
+// Gets 3-standard-deviation predicted range for r
+// RUN predict() BEFORE running this!!!
+void CvAddonSymmetryTracker :: predictRRange(float& rMin, float& rMax) 
+{
+	float rRange = sqrtf( CV_MAT_ELEM(*S, float, 0, 0) ) * NUM_DEV;		
+	float rPre = CV_MAT_ELEM(*(kalman->state_pre), float, 0, 0);
+
+	//std::cerr << "thRange: " << thRange << std::endl;
+
+	rMin = rPre - rRange;
+	rMax = rPre + rRange;
 }
 
 
@@ -174,7 +229,7 @@ void CvAddonSymmetryTracker :: predictThetaRange(float& thMin, float& thMax)
 bool CvAddonSymmetryTracker :: validate(const CvAddonFastSymResults &measurements, float& minError, int& minIndex)
 {
 	//CvPoint val = cvPoint(-1,-1);		
-	minError = SYMMETRY_TRACKER_CHI_ERROR;
+	minError = 1000000;
 	minIndex = -1;
 	
 	// inv(S)
@@ -205,10 +260,48 @@ bool CvAddonSymmetryTracker :: validate(const CvAddonFastSymResults &measurement
 	}
 
 	// Checking error to make sure "best" data is valid
-	// 2DOF 0.01 Chi Square used
-	if(minError > SYMMETRY_TRACKER_CHI_ERROR)
+	// NEW - added sqrtf(), not sure if this is right...
+	if(sqrtf(minError) >= SYMMETRY_TRACKER_CHI_ERROR)
 		return false;
 
 	return true;
 }
+
+
+
+void CvAddonSymmetryTracker::draw(const CvAddonFastSymResults& measurements, IplImage* dst
+	, const float &minTheta, const float& maxTheta
+	, const float &minR, const float &maxR
+	, const CvScalar& predictionColour, const CvScalar& estimateColour
+	, const CvScalar& thetaRangeColour, const CvScalar& measurementColour)
+{
+#define PRE_R CV_MAT_ELEM(*(kalman->state_pre), float, 0, 0)
+#define PRE_TH	CV_MAT_ELEM(*(kalman->state_pre), float, 1, 0)
+
+	cvAddonDrawPolarLine(dst, minR, minTheta
+		, thetaRangeColour, 1);
+	cvAddonDrawPolarLine(dst, minR, maxTheta
+		, thetaRangeColour, 1);
+	cvAddonDrawPolarLine(dst, maxR, minTheta
+		, thetaRangeColour, 1);
+	cvAddonDrawPolarLine(dst, maxR, maxTheta
+		, thetaRangeColour, 1);
+
+	cvAddonDrawPolarLine(dst, PRE_R, PRE_TH
+		, predictionColour, 2);
+
+	for(int n = 0; n < measurements.numSym; ++n)
+	{
+		cvAddonDrawPolarLine(dst, measurements.symLines[n].r
+			, measurements.symLines[n].theta
+			, measurementColour, 1);			
+	}	
+
+	cvAddonDrawPolarLine(dst, CV_MAT_ELEM(*(kalman->state_post), float, 0, 0)
+		, CV_MAT_ELEM(*(kalman->state_post), float, 1, 0), estimateColour, 2);
+
+#undef PRE_R
+#undef PRE_TH
+}
+
 

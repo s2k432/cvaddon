@@ -73,7 +73,7 @@ private:
 	IplImage *gray0, *gray1;
 };
 
-int CvAddonBlockMotionDetector::detect(const IplImage* img0, const IplImage* img1, IplImage *diff
+inline int CvAddonBlockMotionDetector::detect(const IplImage* img0, const IplImage* img1, IplImage *diff
 	, IplImage *motionMask, CvRect &boundingRect
 	, const float &motionFactor, const bool &useDiff
 	, const bool &invertMotionMask)
@@ -81,6 +81,9 @@ int CvAddonBlockMotionDetector::detect(const IplImage* img0, const IplImage* img
 	int i,j;	// diff indices
 	int ii,jj;	// blockSum indices
 	int m,n;	// Block indices
+
+	// NEW - Ignore pixels with difference value less than this (noise)
+	const uchar NOISE_THRESH = 40;
 
 	// TODO image size, channel and type check
 	// TODO optimize, and don't use CV_IMAGE_ELEM()
@@ -105,16 +108,23 @@ int CvAddonBlockMotionDetector::detect(const IplImage* img0, const IplImage* img
 			for(jj = 0, j = 0; jj < blockImageSize.width; jj++) {
 				n = j;
 				j += BLOCK_SIZE;
-				for(; n < j; n++) {
-					CV_IMAGE_ELEM(blockSum, float, ii, jj)
-						+= (float)CV_IMAGE_ELEM(diff, uchar, m, n);
+				for(; n < j; n++) 
+				{
+					uchar tmpVal = CV_IMAGE_ELEM(diff, uchar, m, n);
 
-					total += (float)CV_IMAGE_ELEM(diff, uchar, m, n);
+					if(tmpVal > NOISE_THRESH) {
+						CV_IMAGE_ELEM(blockSum, float, ii, jj)
+							+= (float)tmpVal;
+						total += (float)tmpVal;
+					}
 				}
 			}
 		}
 	}
 	float avgSum = total / (blockImageSize.width * blockImageSize.height);
+
+	//// DEBUG
+	//cerr << "Total!!! " << total << endl;
 
 	cvThreshold(blockSum, tmpBuffer, motionFactor*avgSum, 255, CV_THRESH_BINARY);
 
@@ -173,10 +183,14 @@ int CvAddonBlockMotionDetector::detect(const IplImage* img0, const IplImage* img
 	// TESTING QUICK WAY
 	//	cvResize(result, motionMask, CV_INTER_NN);
 	
+	//// DEBUG
+	//CvSize foo = cvGetSize(result);
+	//cerr << foo.width << ",," << foo.height << endl;
+
 	return cvCountNonZero(result);
 }
 
-CvAddonBlockMotionDetector::CvAddonBlockMotionDetector(const CvSize& srcSize, const int& blockSize)
+inline CvAddonBlockMotionDetector::CvAddonBlockMotionDetector(const CvSize& srcSize, const int& blockSize)
 	: BLOCK_SIZE(blockSize)
 {
 	inputSize.width = srcSize.width;
@@ -193,7 +207,7 @@ CvAddonBlockMotionDetector::CvAddonBlockMotionDetector(const CvSize& srcSize, co
 	result = cvCreateImage( blockImageSize, IPL_DEPTH_8U, 1);
 }
 
-CvAddonBlockMotionDetector::~CvAddonBlockMotionDetector() 
+inline CvAddonBlockMotionDetector::~CvAddonBlockMotionDetector() 
 {
 	cvReleaseImage(&gray0);
 	cvReleaseImage(&gray1);

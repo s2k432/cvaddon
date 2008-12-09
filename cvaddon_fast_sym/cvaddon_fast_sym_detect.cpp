@@ -14,6 +14,8 @@ using std::sort;
 	#include "cvaddon_display.h"
 #endif
 
+// Uncomment to limit voting to a single vote for a bin for each row of rotated edge pixels
+// #define _FAST_SYM_SINGLE_VOTE_PER_ROW
 
 CvAddonFastSymDetector::CvAddonFastSymDetector(const CvSize &imgSize
 	, const CvSize &houghSize, const int &rotEdgeRowHeight)
@@ -94,6 +96,9 @@ CvAddonFastSymDetector::CvAddonFastSymDetector(const CvSize &imgSize
 	shift = cvCreateMat(2, 1, CV_32FC1);
 	peakNBH = cvCreateMat(3, 3, CV_32FC1);
 
+	// NEW - Temporary accumulator for a single row (across R) of H
+	HRowTmp = new float[R_DIVS];
+
 	__END__;
 }
 
@@ -115,6 +120,8 @@ CvAddonFastSymDetector::~CvAddonFastSymDetector()
 	cvReleaseMat(&diff);
 	cvReleaseMat(&hessian);
 	cvReleaseMat(&shift);
+
+	delete [] HRowTmp;
 }
 
 
@@ -182,6 +189,10 @@ void CvAddonFastSymDetector::vote( const IplImage *src
 	if(angleLimits) {
 		startThetaIdx = (minThetaDeg + 90.0f) / 180.0f * (THETA_DIVS-1); 
 		endThetaIdx = (maxThetaDeg + 90.0f) / 180.0f * (THETA_DIVS-1);
+
+		// New - Making sure limits are not toooo crazy
+		if(startThetaIdx < 0) startThetaIdx = 0;
+		if(endThetaIdx >= THETA_DIVS) endThetaIdx = THETA_DIVS - 1;
 	}
 
 	// Extracting locations of edge pixels from edge image
@@ -224,6 +235,7 @@ void CvAddonFastSymDetector::vote( const IplImage *src
 		if(rowCount > 0)
 			rowMean /= rowCount;
 
+#ifndef _FAST_SYM_SINGLE_VOTE_PER_ROW		
 		// Ratio-based straight line rejection
 		thresh = 2.0f * rowMean;	
 		for(i = 0, rotEdgesPtr = rotatedEdges->data.fl; i < ROT_DIVS; ++i, rotEdgesPtr += rotStep)
@@ -233,11 +245,17 @@ void CvAddonFastSymDetector::vote( const IplImage *src
 				reRowPtrs[i] = rotEdgesPtr;
 			}
 		}
-
+#endif
 
 
 		for(i = 0, rotEdgesPtr = rotatedEdges->data.fl; i < ROT_DIVS; ++i, rotEdgesPtr += rotStep)
 		{
+			
+#ifdef _FAST_SYM_SINGLE_VOTE_PER_ROW
+			// Zeroing tmp buffer
+			memset(HRowTmp, 0, sizeof(float)*R_DIVS);
+#endif
+
 			rRow = rotEdgesPtr;
 			rEnd = reRowPtrs[i];
 			if(rEnd != rRow)
@@ -249,11 +267,20 @@ void CvAddonFastSymDetector::vote( const IplImage *src
 						float dist = fabsf(*x1 - *x0);
 						if(dist > maxDist || dist < minDist) break;
 						else {
+#ifdef _FAST_SYM_SINGLE_VOTE_PER_ROW
+							HRowTmp[	(int)(*x0 + *x1) ] = 1;
+#else
 							++HRow[ (int)(*x0 + *x1) ];		// Truncates in R only, not theta
+#endif
 						}
 					}
 				}
-			}		
+			}
+#ifdef _FAST_SYM_SINGLE_VOTE_PER_ROW
+			// Copying voting results for current row back to accumulator
+			for(int cc = 0; cc < R_DIVS; ++cc)
+				HRow[cc] += HRowTmp[cc];
+#endif
 		}		
 	}
 
@@ -283,7 +310,9 @@ void CvAddonFastSymDetector::getResult(const int &maxPeaksFound, CvAddonFastSymR
 	, const bool &smoothBins
 	, const bool &angleLimits//, const float &r0, const float &r1
 	, const float &minThetaDeg, const float &maxThetaDeg
-	, const float &threshToZero, const float &threshRelMaxPeak
+	, const bool &rLimits
+	, const float& minR, const float& maxR
+	, const float &peakThresh, const float &peakThreshRelMax
 	)
 {
 	int i,j;
@@ -300,10 +329,16 @@ void CvAddonFastSymDetector::getResult(const int &maxPeaksFound, CvAddonFastSymR
 	MRow += MStep * (THETA_DIVS+1);
 	for(i = 0; i < MStep ; ++i) MRow[i] = 0;
 
-	// NEW - Angle Limits
+	// Angle Limits
 	if(angleLimits) {
 		int startThetaIdx = (minThetaDeg + 90.0f) / 180.0f * (THETA_DIVS-1) + 1; 
 		int endThetaIdx = (maxThetaDeg + 90.0f) / 180.0f * (THETA_DIVS-1) + 1;
+
+		// New - making sure angles are not out of bounds
+		if(startThetaIdx <= 0 || endThetaIdx <= startThetaIdx || endThetaIdx > THETA_DIVS) {
+			startThetaIdx = 1;
+			endThetaIdx = THETA_DIVS;
+		}
 
 		MRow = HMask->data.ptr;
 			
@@ -319,9 +354,36 @@ void CvAddonFastSymDetector::getResult(const int &maxPeaksFound, CvAddonFastSymR
 			for(i = 0; i < MStep ; ++i) MRow[i] = 0;
 			MRow += MStep;
 		}
-
 //#ifdef _DEBUG
 //		cvAddonShowImageOnce(HMask, "Hough Mask with Angle Limits");
+//#endif
+	}
+
+
+	// R Limits
+	if(rLimits) {
+		int startRIdx = minR / I2R_C  + R_DIVS_2;
+		int endRIdx = maxR / I2R_C  + R_DIVS_2;
+
+		// New - making sure R values are not out of bounds
+		if(startRIdx < 0 || endRIdx <= startRIdx || endRIdx >= R_DIVS) {
+			startRIdx = 0;
+			endRIdx = R_DIVS - 1;
+		}
+
+
+		MRow = HMask->data.ptr;
+			
+		// Zeroing mask values before start angle
+		MRow = HMask->data.ptr + MStep;
+		for(j = 1; j < THETA_DIVS+1; ++j) { 
+
+			for(i = 0; i < startRIdx ; ++i) MRow[i] = 0;
+			for(i = endRIdx; i < MStep ; ++i) MRow[i] = 0;
+			MRow += MStep;
+		}
+//#ifdef _DEBUG
+//		cvAddonShowImageOnce(HMask, "Hough Mask with R Limits");
 //#endif
 	}
 
@@ -337,8 +399,6 @@ void CvAddonFastSymDetector::getResult(const int &maxPeaksFound, CvAddonFastSymR
 		thetaNBH = cvRound((float)THETA_DIVS / thetaNBHDivs / 2.0f);
 	}
 
-//	cerr << rNBH << "," << thetaNBH << endl;
-
 	// Not enough room in results structure
 	if(dst.maxSym < nPeaks) {
 		// Deleting already allocated data
@@ -346,45 +406,45 @@ void CvAddonFastSymDetector::getResult(const int &maxPeaksFound, CvAddonFastSymR
 			delete [] dst.symLines;
 		}
 		dst.symLines = new CvAddonFastSymLine[nPeaks];
-		dst.maxSym = nPeaks;
-		dst.numSym = 0;
 	}
+	dst.maxSym = nPeaks;
+	dst.numSym = 0;
 
 	// Making copy of Hough Accumulator 
-	// (as peak find process destroys the bin values)
+	// (as peak finding process modifies bin values)
 	if(smoothBins) cvSmooth(H, HBackUp);
 	else cvCopy(H, HBackUp);
-
-	int p;
 
 	// Peak Sub-Index Localization
 	float *peakShift;
 	float peakNBVals[9];
 
 	// Simple global peak search
+	int p;
 	for(p = 0; p < nPeaks; ++p)
 	{	
 		double maxVal;
 		CvPoint maxLoc;
 		cvMinMaxLoc(HBackUp, NULL, &maxVal, NULL, &maxLoc, HMask);
 
+		// No more peaks left above peak threshold
+		if(maxVal <= peakThresh) break;
+
+		// No more peaks of significant size compared to largest peak
+		if(p > 0 && maxVal < dst.symLines[0].numOfVotes * peakThreshRelMax)
+			break;
+
 		int rIdx = maxLoc.x;
 		int tIdx = maxLoc.y;
 
-		// No more non-zero peaks left
-		if(maxVal <= 0) break;
-	
-		// Chuck results (and hence skip sub-pixel localization)
-		// if r values too large (most likely erroneous)
+		// R values too large (most likely erroneous)
 		// TODO increase ignored margins (too close to diagonal?)
 		if(rIdx <= 0 || rIdx >= R_DIVS - 1) break;
 
-		// A "WTF" moment, as theta index is in the padding...
-		if(tIdx <= 0 || tIdx >= THETA_DIVS+1) {
-			break;
-		}
+		// A "WTF" moment, as theta index is in the padding bins...
+		if(tIdx <= 0 || tIdx >= THETA_DIVS+1) break;
 
-		// Copying raw results
+		// Copying raw results to dst struct
 		dst.symLines[p].numOfVotes		= maxVal;
 		dst.symLines[p].rIndexRaw		= rIdx;
 		dst.symLines[p].thetaIndexRaw	= tIdx;
@@ -420,7 +480,6 @@ void CvAddonFastSymDetector::getResult(const int &maxPeaksFound, CvAddonFastSymR
 		// Finding theta in radians, r in pixels
 		dst.symLines[p].r			= getPixelFromIndex(dst.symLines[p].rIndex);
 		dst.symLines[p].theta		= getRadiansFromIndex(dst.symLines[p].thetaIndex);
-
 		
 		// Suppressing Peak Neighbourhood by zeroing mask
 		bool wrapMaskTheta = false;
@@ -432,9 +491,6 @@ void CvAddonFastSymDetector::getResult(const int &maxPeaksFound, CvAddonFastSymR
 		if(t0 <= 0 || t1 >= THETA_DIVS+1) wrapMaskTheta = true;
 
 		if(wrapMaskTheta) {
-//				// DEBUG
-//				cerr << "WRAP" << endl;
-
 			CvRect NBHSub0, NBHSub1;
 
 			// Wrapping from 0 --> THETA_DIVS

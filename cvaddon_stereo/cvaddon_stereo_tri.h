@@ -7,12 +7,12 @@
 #include <cv.h>
 #include "cvaddon_stereo_calib.h"
 
-class cvAddonStereoTriangulator
+class CvAddonStereoTriangulator
 {
 public:
 
-	cvAddonStereoTriangulator();
-	~cvAddonStereoTriangulator();
+	CvAddonStereoTriangulator();
+	~CvAddonStereoTriangulator();
 
 	// Stereo Triangulation of 2 calibrated views of the same 3D point (known coorespondence)
 	// _xL and _xR are the left and right camera pixel coordinates (not normalized) of the target point

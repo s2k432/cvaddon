@@ -1,14 +1,9 @@
 #pragma once
 
-#include <cv.h>
+#include <cv.h>	// OpenCV
+#include "../cvaddon_fast_sym/cvaddon_fast_sym_detect.h"		// Symmetry detection
 
-#include <vector>
-using std::vector;
-
-
-#include "../cvaddon_fast_sym/cvaddon_fast_sym_detect.h"
-
-
+// Symmetry Line
 struct CvAddonSymmetryTrackerEstimate
 {
 	float r, theta;
@@ -35,10 +30,9 @@ struct CvAddonSymmetryTrackerEstimate
 // while( img = capture_from_camera() )
 // {
 //    predict(min, max);
-//	  symResult = detectSym(min,max);
+//		symResult = detectSym(min,max);
 //    estimate = update(symResults);
 // }
-
 
 class CvAddonSymmetryTracker
 {
@@ -51,28 +45,38 @@ public:
 	void init(CvMat* startingState);						
 
 	// Filter prediction
-	// Also gives validation gate bounds for next theta (used to speed up symmetry detection)
-	CvAddonSymmetryTrackerEstimate predict(float& minTheta, float& maxTheta);			
+	// Can also give validation gate bounds for next theta (used to speed up symmetry detection)
+	CvAddonSymmetryTrackerEstimate predict();	
+	CvAddonSymmetryTrackerEstimate predict(float& minTheta, float& maxTheta
+		, float& minR, float& maxR);			
 
 	// Updates filter with measurement nearest prediction
 	// If no measurements lie within validation gate, uses prediction as updated state
 	CvAddonSymmetryTrackerEstimate update(const CvAddonFastSymResults &measurements);
 
-	// OpenCV Kalman filter
-	// **Make this public for tweaking params during run time if needed
-	CvKalman* kalman;			// Filter
+	// Draws Tracking Results onto an image for Visualization
+	void CvAddonSymmetryTracker::draw(const CvAddonFastSymResults& measurements, IplImage* dst
+		, const float &minTheta, const float& maxTheta
+		, const float &minR, const float &maxR
+		, const CvScalar& predictionColour = CV_RGB(255,0,0)
+		, const CvScalar& estimateColour =	CV_RGB(0,255,0)
+		, const CvScalar& thetaRangeColour = CV_RGB(255,128,0)
+		, const CvScalar& measurementColour = CV_RGB(255,255,0) );
 
-	// Validation Gate
-	CvMat *S, *S_invert, *v, *z;
+
+	CvKalman* kalman;			// OpenCV Kalman filter
+
+	// Validation Gate Matrices
+	CvMat *S, *S_invert, *v, *z;		
 	CvMat *v_times_S_invert, *H_times_P, *vg_error;
 
 
 private:
 	CvMat* newMeasurement;		// Temp matrix for measurements
 
-
-	// Functions
-	void predictThetaRange(float& thMin, float& thMax);		// Finds expected theta range which next valid measurement should be within
+	// Finds expected theta range which next valid measurement should be within
+	void predictThetaRange(float& thMin, float& thMax);		
+	void predictRRange(float& rMin, float& rMax);
 
 	// Validates measurements and finds index and error of best measurement. Used by update()
 	// Returns false if no measurement is valid
@@ -82,7 +86,11 @@ private:
 // Chi-Square error used in Validation Gate
 // Chi Square 2DOF
 const float SYMMETRY_TRACKER_CHI_ERROR = 9.21f;		// 0.01
-//const float SYMMETRY_TRACKER_CHI_ERROR = 5.99f;		// 0.05
+//const float SYMMETRY_TRACKER_CHI_ERROR = 5.99f;	// 0.05
+
+const unsigned int NUM_KF_STATE = 6;
+const unsigned int NUM_KF_MEASUREMENT = 2;
+
 
 
 

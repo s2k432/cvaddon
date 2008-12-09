@@ -59,6 +59,7 @@
 
 
 #include "cv.h"
+#include "../cvaddon_util/cvaddon_draw.h"		// Visualization
 
 // Forward Declaration
 struct CvAddonFastSymResults;
@@ -89,10 +90,11 @@ public:
 		, const float &rNBHDivs = 10.0f, const float &thetaNBHDivs = 10.0f
 		, const bool &smoothBins = true		// Smoothing Hough accum before peak find
 		, const bool &angleLimits = false
-//		, const float &r0 = 0.0f,  const float &r1 = 0.0f
 		, const float &minThetaDeg = 0.0f,  const float &maxThetaDeg = 0.0f
-		, const float &threshToZero = -1.0f		// if > 0, peaks with height < threshToZero are set to 0
-		, const float &threshRelMaxPeak = -1.0f	// if > 0, peaks < threshRelMaxPeak * maxPeak are set to 0
+		, const bool &rLimits = false
+		, const float& minR = 0.0f, const float& maxR = 0.0f
+		, const float &peakThresh = -1.0f		// Only returns peaks with votes > peakThresh
+		, const float &peakThreshRelMax = -1.0f	// Only returns peaks with votes > (threshRelMaxPeak * maxPeak)
 		);
 
 	float getRadiansFromIndex(const float &thetaIndex) {
@@ -117,6 +119,7 @@ public:
 
 	// DEBUG
 	CvMat *H, *HBackUp, *HMask;	// Hough Accumulator
+	float *HRowTmp;		// Buffer for a single row of H
 
 private:
 //	CvMat *H, *HBackUp;	// Hough Accumulator
@@ -162,6 +165,37 @@ struct CvAddonFastSymResults
 		}
 	}
 	~CvAddonFastSymResults() { if(maxSym > 0) delete [] symLines; }
+
+	// Copy ctor
+	CvAddonFastSymResults(const CvAddonFastSymResults& fsr)
+	{
+		symLines = new CvAddonFastSymLine[fsr.numSym];
+		for(int i = 0; i < fsr.numSym; ++i) {
+			symLines[i] = fsr.symLines[i];
+		}
+		numSym = fsr.numSym;
+	}
+
+	// Assignment
+	CvAddonFastSymResults& operator=(const CvAddonFastSymResults& fsr)
+	{
+		if(maxSym < fsr.numSym) {
+			delete [] symLines;
+			symLines = new CvAddonFastSymLine[fsr.numSym];
+		}
+
+		for(int i = 0; i < fsr.numSym; ++i) {
+			symLines[i] = fsr.symLines[i];
+		}
+		numSym = fsr.numSym;
+	}
 };
+
+inline void cvAddonDrawSymResults(IplImage* dst, CvAddonFastSymResults& sym, const CvScalar& colour
+	, const int &thickness = 1, const int& lineType = 8 )
+{
+	for(int f = 0; f < sym.numSym; ++f)
+		cvAddonDrawPolarLine(dst, sym.symLines[f].r, sym.symLines[f].theta, colour, thickness, lineType);
+}
 
 #endif

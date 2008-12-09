@@ -1,7 +1,4 @@
 #pragma once
-
-// TODO: UPDATE to use new fast sym etc...
-
 // Functions dealing with symmetry matching and triangulation 
 // between stereo images
 
@@ -12,6 +9,15 @@
 #include "cvaddon_geometry_data.h"
 #include <vector>
 using std::vector;
+
+// Data structure for holding symmetry line results
+// This includes the 3D location of triangulated symmetry axes
+// and the correspondences that produce them
+struct CvAddonSymTriResults
+{
+	Line3D<float> line;
+	CvAddonFastSymLine leftSym, rightSym;
+};
 
 // Function returns the number of matching symmetry lines
 //
@@ -33,5 +39,5 @@ int cvAddonTriangluateSymLines(CvAddonFastSymResults &leftSymResults
 	, CvAddonFastSymResults &rightSymResults
 	, const PlaneHessian3D<float> &tablePlane
 	, const CvSize imgSize, const CvAddonStereoParameters &stereoParams
-	, vector< Line3D<float> > &symLines3D
+	, vector< CvAddonSymTriResults > &symLines3D
 );

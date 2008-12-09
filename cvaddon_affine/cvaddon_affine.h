@@ -23,7 +23,9 @@ inline void CvAddonImageRotator::rot(const IplImage* src, const float& theta, Ip
 {
 	
 	CvSize imgSize = cvGetSize(src);
+	
 	CvPoint2D32f centre = cvPoint2D32f( ((float)src->width-1) / 2.0f, ((float)src->height-1) / 2.0f );
+
 	cv2DRotationMatrix( centre, theta / CV_PI * 180.0f, 1.0, rotMat);
 
 	cvWarpAffine(src, dst, rotMat, CV_INTER_LINEAR+CV_WARP_FILL_OUTLIERS, cvScalarAll(0) );

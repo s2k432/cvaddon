@@ -1,5 +1,3 @@
-// TODO: UPDATE to use new fast sym etc...
-
 // Functions dealing with symmetry matching and triangulation 
 // between stereo images
 
@@ -26,18 +24,21 @@ using std::vector;
 using std::pair;
 
 // Allowable symmetry angles given Table Plane
-static const float MAX_ANGLE_DEVIATION = 0.17453292519943f;	// 10 degrees deviation from vertical allowed
-//static const float MAX_ANGLE_DEVIATION = 0.08726646259972f;	// 5 degrees deviation from vertical allowed
+//static const float MAX_ANGLE_DEVIATION = 0.26179938779915f;	// 15 degrees deviation from vertical allowed
+//static const float MAX_ANGLE_DEVIATION = 0.17453292519943f;	// 10 degrees deviation from vertical allowed
+
+static const float MAX_ANGLE_DEVIATION = 0.08726646259972f;	// 5 degrees deviation from vertical allowed
 
 // Distance Threholds for considering 3D symmetry axes as being valid
-static const float MIN_TRIANGULATION_DISTANCE = 300.0f;		// Minimum distance considered
-static const float MAX_TRIANGULATION_DISTANCE = 1500.0f;		// Max distance considered
+static const float MIN_TRIANGULATION_DISTANCE = 400.0f;		// Minimum distance considered
+static const float MAX_TRIANGULATION_DISTANCE = 1200.0f;		// Max distance considered (used to be 1m)
 
 // Distance used to generate 3D triangular planes to find left-right sym plane intersections
-static const float SYM_Z = MAX_TRIANGULATION_DISTANCE;		
+static const float SYM_Z = MAX_TRIANGULATION_DISTANCE;
 
-// NEW - Similarity Threshold (proportional ratio) to 
-static const float SYM_SIM_RATIO = 0.75f;
+// NEW - Similarity Threshold (proportional ratio). 
+// Value between 0.0 and 1.0, with 0.0 being no similarity require, and 1 being completely the same (impossible in practice)
+static const float SYM_SIM_RATIO = 0.0f; //0.5f;
 
 //inline void findSymEndPoints(const CvPoint& peak, const FastSymDetector &fastSym, CvPoint2D32f &pt1, CvPoint2D32f &pt2)
 //{
@@ -74,7 +75,7 @@ int cvAddonTriangluateSymLines(CvAddonFastSymResults &leftSymResults
 	, CvAddonFastSymResults &rightSymResults
 	, const PlaneHessian3D<float> &tablePlane
 	, const CvSize imgSize, const CvAddonStereoParameters &stereoParams
-	, vector< Line3D<float> > &symLines3D)
+	, vector< CvAddonSymTriResults > &symLines3D)
 {
 	CvPoint2D32f tmp[2];
 	Triangle3D<float> leftTri, rightTri;
@@ -91,8 +92,15 @@ int cvAddonTriangluateSymLines(CvAddonFastSymResults &leftSymResults
 
 	int leftLen = leftSymResults.numSym;
 	int rightLen = rightSymResults.numSym;
+	
+	if(leftLen <= 0 || rightLen <= 0 ) return -1;
 
-	int matchCount = 0;
+
+	// NEW
+	// clearing vector contents
+	symLines3D.clear();
+
+	//int matchCount = 0;
 	int i, j;
 	for(i = 0; i < leftLen; ++i)
 	{
@@ -158,15 +166,19 @@ int cvAddonTriangluateSymLines(CvAddonFastSymResults &leftSymResults
 				continue;
 			}
 			else if(hasIntersect) {
-				Line3D<float> symLine;
-				memcpy(&(symLine.x0), intersect0, sizeof(intersect0) );
-				memcpy(&(symLine.x1), intersect1, sizeof(intersect1) );
-
+				
+				// Filling data structure with intersect data
+				CvAddonSymTriResults symLine;
+				memcpy(&(symLine.line.x0), intersect0, sizeof(intersect0) );
+				memcpy(&(symLine.line.x1), intersect1, sizeof(intersect1) );
+				
+				memcpy(&(symLine.leftSym), &(leftSymResults.symLines[i]), sizeof(CvAddonFastSymLine) );
+				memcpy(&(symLine.rightSym), &(rightSymResults.symLines[j]), sizeof(CvAddonFastSymLine) );
 
 				// ========= Rejecting False Matches =========
 				float angle;
 				Point3D<float> intersect;
-				int hasIntersect = linePlaneNormalAngle(symLine, tablePlane, angle, intersect);
+				int hasIntersect = linePlaneNormalAngle(symLine.line, tablePlane, angle, intersect);
 
 //				if(i == 1 && j == 1) 
 //				{
@@ -176,13 +188,30 @@ int cvAddonTriangluateSymLines(CvAddonFastSymResults &leftSymResults
 //					cerr << endl;
 //				}
 
+				//// DEBUG
+				//if(hasIntersect) {
+				//	cerr << "Inter Angle: " << angle / CV_PI * 180.0f << endl;
+				//}
+
 				if(angle > CV_PI/2) {
 					angle = fabsf(angle - CV_PI);
 				}
+				//else if(angle < 0)
+				//	angle = fabsf(angle);
 
 				// Checking to see if symmetry line intersects table AND
 				// Checking to see if symmetry line is roughly perpendicular to table
 				if(hasIntersect == 0 || angle >= MAX_ANGLE_DEVIATION) {
+
+					//// DEBUG
+					//if(hasIntersect == 0 && angle >= MAX_ANGLE_DEVIATION) 
+					//	std::cerr << "cvaddon_stereo_sym: omg wtf T_T" << std::endl;
+					//else if(hasIntersect == 0)
+					//	std::cerr << "cvaddon_stereo_sym: !inter" << std::endl;
+					//else
+					//	std::cerr << "cvaddon_stereo_sym: angle = teh lose" << std::endl;
+					
+
 					continue;
 				}
 
@@ -200,19 +229,25 @@ int cvAddonTriangluateSymLines(CvAddonFastSymResults &leftSymResults
 				
 				if(wL > wR && wL * SYM_SIM_RATIO > wR) continue;
 				else if(wR > wL && wR * SYM_SIM_RATIO > wL) continue;
-				// DEBUG
-				else {
-					cerr << "wL: " << wL << endl;;
-					cerr << "wR: " << wR << endl;;
-				}
+				//// DEBUG
+				//else {
+				//	cerr << "wL: " << wL << endl;;
+				//	cerr << "wR: " << wR << endl;;
+				//}
 				
 				// ============ Storing Result ===============
-				// resizing symLines result vector
-				if(matchCount+1 >= symLines3D.size()) {
-					symLines3D.reserve(symLines3D.size() + 10);
-				}
+				// NEW
+				//// resizing symLines result vector
+				//if(matchCount+1 >= symLines3D.size()) {
+				//	symLines3D.reserve(symLines3D.size() + 10);
+				//}
 				//symLines3D.push_back(tmp);
-				symLines3D[matchCount++] = symLine;
+
+				// NEW
+				 //symLines3D[matchCount++] = symLine;
+
+
+				symLines3D.push_back(symLine);
 			}
 			else {
 				continue;
@@ -220,11 +255,13 @@ int cvAddonTriangluateSymLines(CvAddonFastSymResults &leftSymResults
 		}
 	}
 
-	symLines3D.resize(matchCount);
+	// NEW
+	//symLines3D.resize(matchCount);
 
 //	cerr << matchCount << endl;
 //	cerr << matchCount << endl;
 //	cerr << matchCount << endl;
 
-	return matchCount;
+	//return matchCount;
+	return symLines3D.size();
 }

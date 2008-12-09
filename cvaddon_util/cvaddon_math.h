@@ -12,19 +12,18 @@
 // - CvRect resize
 // - MAX, MIN etc
 ////////////////////////////////////////////////////////////
-// TODO
-// ---
-// Error checks
-//
-// DOC issues:
-// Check and reject bad hessians? (abs(shift) > 1 etc)
-////////////////////////////////////////////////////////////
 #include <cxcore.h>
 #include <cv.h>
 
 #include <iostream>
 using std::endl;
 using std::cerr;
+
+#include <math.h>
+
+#ifndef MAXFLOAT
+	#define MAXFLOAT 1000000.0f
+#endif
 
 #define CV_MAT_VAL(mat, type, row, col) \
 	( ((type*)( (mat)->data.ptr + (mat)->step* (row) ))[ (col) ] )
@@ -90,9 +89,17 @@ inline void cvAddonFindPolarLineEndPoints(const CvSize &size, const float &r, co
 		d[0] = x_r / sin_th;
 		d[1] = (x_r - (float)size.width + 1) / sin_th;
 	}
+	else {
+		d[0] = MAXFLOAT;
+		d[1] = MAXFLOAT;
+	}
 	if(cos_th != 0) {
 		d[2] = -y_r / cos_th; 
 		d[3] = ((float)size.height - 1 - y_r) / cos_th;
+	}
+	else {
+		d[2] = MAXFLOAT;
+		d[3] = MAXFLOAT;
 	}
 
 	min_d = d[0];
@@ -110,9 +117,17 @@ inline void cvAddonFindPolarLineEndPoints(const CvSize &size, const float &r, co
 		d[0] = -x_r / sin_th;
 		d[1] = ((float)size.width - x_r - 1) / sin_th;
 	}
+	else {
+		d[0] = MAXFLOAT;
+		d[1] = MAXFLOAT;
+	}
 	if(cos_th != 0) {
 		d[2] = y_r / cos_th;
 		d[3] = (1 + y_r - (float)size.height) / cos_th;
+	}
+	else {
+		d[2] = MAXFLOAT;
+		d[3] = MAXFLOAT;
 	}
 
 	min_d = d[0];
@@ -231,5 +246,16 @@ inline float *cvAddonFindExtrema3x3_2D(const float arr[9], CvMat *vec, CvMat *ma
 
 	return shift->data.fl;
 }
+
+// Simple (non-recursive) factorial function (assumes small a)
+inline int cvAddonSmallFactorial(const int& a)
+{
+	if(a <= 1) return 1;
+	int tmp = 1;
+	for(int i = a; i > 1; --i)
+		tmp *= i;
+	return tmp;
+}
+
 
 #endif

@@ -1,3 +1,5 @@
+#include "cvaddon_stereo_calib.h"
+
 // Data structures and functions dealing with 
 // stereo camera calibration
 // REQUIRES: MATLAB io libraries
@@ -9,26 +11,12 @@
 using std::cerr;
 using std::endl;
 
-#include "cvaddon_stereo_calib.h"
 
 // Make sure to include MATLAB .mat io libraries
 // Libraries located at: C:\Program Files\MATLAB71\extern\include
 //#pragma comment(lib, "libmat.lib")
 //#pragma comment(lib, "libmx.lib")
 
-// Utility function to copy MATLAB data to a variable, including error checks
-inline bool copyMatlabData(MATFile *mfile, const char* varName, double *dst, const int& size)
-{
-	mxArray *tmp = matGetVariable(mfile, varName);
-	if(tmp == NULL)  return false;
-
-	double *data = mxGetPr(tmp);
-	if(data == NULL) return false;
-
-	memcpy(dst, data, sizeof(double)*size);
-	mxDestroyArray(tmp);	
-	return true;
-}
 
 
 // Reads MATLAB .MAT file from stereo calibration and 

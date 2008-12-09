@@ -1,1 +1,1 @@
-Folder contains various functions dealing with stereo images, especially those concering triangulation
+Experiment code to get robot arm to grab object based on stereo localization using symmetry

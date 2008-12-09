@@ -4,7 +4,7 @@
 
 #include "../cvaddon_util/cvaddon_print.h"
 
-cvAddonStereoTriangulator::cvAddonStereoTriangulator()
+CvAddonStereoTriangulator::CvAddonStereoTriangulator()
 {
 	R		= cvCreateMat(3, 3, CV_32FC1);
 	R_inv 	= cvCreateMat(3, 3, CV_32FC1);
@@ -21,7 +21,7 @@ cvAddonStereoTriangulator::cvAddonStereoTriangulator()
 }
 
 
-cvAddonStereoTriangulator::~cvAddonStereoTriangulator()
+CvAddonStereoTriangulator::~CvAddonStereoTriangulator()
 {
 	cvReleaseMat(&R);
 	cvReleaseMat(&R_inv);
@@ -39,7 +39,7 @@ cvAddonStereoTriangulator::~cvAddonStereoTriangulator()
 
 
 // For some reason, the MATLAB version has R and R_inv the other way around (xR <==> xL probably)
-void cvAddonStereoTriangulator::tri(const CvPoint2D32f _xL, const CvPoint2D32f _xR
+void CvAddonStereoTriangulator::tri(const CvPoint2D32f _xL, const CvPoint2D32f _xR
 	, const CvAddonStereoParameters &stereoParams
 	, CvPoint3D32f& _XL, CvPoint3D32f& _XR)
 {	

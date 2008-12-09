@@ -48,13 +48,18 @@ using std::setw;
 // Optionally, a padding of zeros can be added to the start
 // of the value
 template<typename T>
-inline std::string stringify(const T& x, const int& pad = 0)
+inline std::string stringify(const T& x, const int& pad = 0, const int& pre = -1)
 {
 	std::ostringstream o;
 
+	// Setting precision
+	if(pre >= 0) {
+		o.precision(pre);
+		o.setf(std::ios::fixed, std::ios::floatfield);	// float only
+	}
+
 	if(pad <= 0) {
-		if (!(o << x))
-			o.str("");
+		if (!(o << x)) o.str("");
 	}
 	else {
 		if (!(o << setfill('0') << setw(pad) << x))
