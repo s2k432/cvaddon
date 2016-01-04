@@ -1,0 +1,1 @@
+Intel's Open Computer Vision (OpenCV) library is an open source C library with many useful and well implemented Computer Vision functions. This code extends the functionality of the library by providing utility functions, data classes, templated functions and new functions that makes use of OpenCV's data structures, such as IplImage and CvPoint.
